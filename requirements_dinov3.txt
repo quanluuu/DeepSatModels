@@ -1,0 +1,25 @@
+# Env for TSViT + DINOv3 (Python >= 3.11, required by DINOv3).
+# Install torch/torchvision first with the CUDA build matching your GPU:
+#   Pascal (GTX 10xx, sm_61):   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
+#   Turing or newer (sm_75+):   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+#   Kaggle/Colab: keep the preinstalled torch/torchvision.
+# then: pip install -r requirements_dinov3.txt
+torch>=2.4
+torchvision
+einops>=0.7
+timm
+pyyaml
+numpy
+pandas
+scipy
+scikit-learn
+tqdm
+matplotlib
+tensorboard
+# imported by DINOv3's hubconf.py (facebookresearch/dinov3 requirements.txt)
+torchmetrics
+omegaconf
+ftfy
+regex
+submitit
+termcolor

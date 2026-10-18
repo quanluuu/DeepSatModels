@@ -20,7 +20,7 @@ from utils.summaries import write_mean_summaries, write_class_summaries
 from data import get_loss_data_input
 
 
-def train_and_evaluate(net, dataloaders, config, device, lin_cls=False):
+def train_and_evaluate(net, dataloaders, config, device, lin_cls=False, test_only=None):
 
     def train_step(net, sample, loss_fn, optimizer, device, loss_input_fn):
         optimizer.zero_grad()
@@ -107,8 +107,18 @@ def train_and_evaluate(net, dataloaders, config, device, lin_cls=False):
 
     start_global = 1
     start_epoch = 1
+    if test_only:  # evaluate a trained checkpoint on the test split, no training or saving
+        load_from_checkpoint(net, test_only, partial_restore=False, device=device)
+        net.to(device)
+        loss_input_fn = get_loss_data_input(config)
+        loss_fn = {'all': get_loss(config, device, reduction=None)}
+        print("test split metrics for %s" % test_only)
+        return evaluate(net, dataloaders['test'], loss_fn, config)
+
     if checkpoint:
-        load_from_checkpoint(net, checkpoint, partial_restore=False)
+        load_from_checkpoint(net, checkpoint,
+                             partial_restore=get_params_values(config['CHECKPOINT'], "partial_restore", False),
+                             restore_prefixes=get_params_values(config['CHECKPOINT'], "restore_prefixes"))
 
     print("current learn rate: ", lr)
 
@@ -193,6 +203,8 @@ if __name__ == "__main__":
                          help='gpu ids to use')
     parser.add_argument('--lin', action='store_true',
                          help='train linear classifier only')
+    parser.add_argument('--test_only', metavar='CHECKPOINT', default=None,
+                        help='evaluate this checkpoint on the test split and exit')
 
     args = parser.parse_args()
     config_file = args.config
@@ -209,4 +221,4 @@ if __name__ == "__main__":
 
     net = get_model(config, device)
 
-    train_and_evaluate(net, dataloaders, config, device)
+    train_and_evaluate(net, dataloaders, config, device, test_only=args.test_only)

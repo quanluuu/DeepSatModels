@@ -4,7 +4,7 @@ import glob
 import sys
 
 
-def load_from_checkpoint(net, checkpoint, partial_restore=False, device=None):
+def load_from_checkpoint(net, checkpoint, partial_restore=False, device=None, restore_prefixes=None):
     
     assert checkpoint is not None, "no path provided for checkpoint, value is None"
     if os.path.isdir(checkpoint):
@@ -23,6 +23,8 @@ def load_from_checkpoint(net, checkpoint, partial_restore=False, device=None):
     if partial_restore:
         net_dict = net.state_dict()
         saved_net = {k: v for k, v in saved_net.items() if (k in net_dict) and (k not in ["linear_out.weight", "linear_out.bias"])}
+        if restore_prefixes:  # keep only checkpoint params whose name starts with one of these prefixes
+            saved_net = {k: v for k, v in saved_net.items() if k.startswith(tuple(restore_prefixes))}
         print("params to keep from checkpoint:")
         print(saved_net.keys())
         extra_params = {k: v for k, v in net_dict.items() if k not in saved_net}

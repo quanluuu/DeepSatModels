@@ -1,0 +1,70 @@
+MODEL:
+  architecture:  "TSViT_DINOv3"
+  img_res: 24
+  max_seq_len: 60
+  num_channels: 11
+  num_features: 16
+  num_classes: 19
+  ignore_background: False
+  dropout: 0.
+  patch_size: 4                  # 6x6 grid; frames resized 24 -> 96 for DINOv3 (patch 16)
+  dim: 128
+  temporal_depth: 4
+  spatial_depth: 4
+  heads: 4
+  pool: 'cls'
+  dim_head: 32
+  emb_dropout: 0.
+  scale_dim: 4
+  dinov3_repo: "/kaggle/input/<dataset-dinov3>/dinov3"   # local snapshot of facebookresearch/dinov3
+  dinov3_weights: "/kaggle/input/<dataset-dinov3>/dinov3_vits16_pretrain_lvd1689m-08c60483.pth"
+  rgb_idx: [2, 1, 0]             # B4, B3, B2 in PASTIS band order
+  rgb_scale: 3000.
+
+DATASETS:
+  train:
+    dataset: "PASTIS24_fold1"
+    label_map:
+    max_seq_len: 60
+    batch_size: 48             # T8: 1.33 s/step, 6.83 GiB peak on Kaggle T4
+    extra_data:
+    num_workers: 4
+
+  eval:
+    dataset: "PASTIS24_fold1"
+    label_map:
+    max_seq_len: 60
+    batch_size: 24
+    extra_data:
+    num_workers: 4
+
+  test:
+    dataset: "PASTIS24_fold1"
+    label_map:
+    max_seq_len: 60
+    batch_size: 24
+    extra_data:
+    num_workers: 4
+
+SOLVER:
+  num_epochs: 30                 # T8: ~16.8 min/epoch + evals ~ 9.5 h, fits one 12 h Kaggle session
+  num_warmup_epochs: 3
+  steps: (0, 80000)
+  loss_function:  masked_cross_entropy
+  class_weights:
+  lr_scheduler: 'cosine'
+  lr_base: 1e-3
+  lr_min: 5e-6
+  lr_start: 1e-8
+  num_cycles: 1
+  reset_lr: True   # resets lr to base value when loading pretrained model
+  weight_decay: 0.000
+
+CHECKPOINT:
+  load_from_checkpoint: "/kaggle/input/<dataset-tsvit-ckpt>/best.pth"   # old TSViT fold1; leave empty for random init
+  partial_restore: True
+  restore_prefixes: ["to_temporal_embedding_input.", "temporal_token", "temporal_transformer."]   # only temporal parts are reused
+  save_path: 'models/saved_models/PASTIS24/TSViT_DINOv3_fold1'
+  train_metrics_steps: 250
+  eval_steps: 2000
+  save_steps: 20000000000

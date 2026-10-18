@@ -59,6 +59,16 @@ def get_dataloaders(config):
             transform=France_segmentation_transform(model_config, eval_config, is_training=True),
             batch_size=eval_config['batch_size'], shuffle=False, num_workers=eval_config['num_workers'])
 
+    # TEST data --------------------------------------------------------------------------------------------------------
+    # shortcut: PASTIS only, extend like the eval block if another dataset needs test-split evaluation
+    test_config = config['DATASETS'].get('test')
+    if test_config is not None and 'PASTIS' in test_config['dataset']:
+        dataloaders['test'] = get_pastis_dataloader(
+            paths_file=DATASET_INFO[test_config['dataset']]['paths_test'],
+            root_dir=DATASET_INFO[test_config['dataset']]['basedir'],
+            transform=PASTIS_segmentation_transform(model_config, is_training=False),
+            batch_size=test_config['batch_size'], shuffle=False, num_workers=test_config['num_workers'])
+
     return dataloaders
 
 

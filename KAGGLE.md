@@ -120,6 +120,20 @@ ckpt = hits[0] if hits else find('TSViT_DINOv3_fold1/best.pth')
 !python -m app.precompute --config configs/PASTIS24/TSViT_DINOv3_fold1.yaml --checkpoint {ckpt} --num-patches 25 --out app/data/demo_patches.npz
 ```
 
+If Kaggle already extracted an uploaded checkpoint (you see `.../best/data.pkl` instead of a `.pth`), zip the folder
+back into a checkpoint and pass that path as `ckpt`:
+
+```python
+import zipfile
+src = os.path.dirname(find('best/data.pkl'))          # the extracted checkpoint folder
+ckpt = '/kaggle/working/best_tsvit_dinov3.pth'
+with zipfile.ZipFile(ckpt, 'w', zipfile.ZIP_STORED, strict_timestamps=False) as z:
+    for dp, _, fs in os.walk(src):
+        for f in sorted(fs):
+            p = os.path.join(dp, f)
+            z.write(p, os.path.relpath(p, os.path.dirname(src)))
+```
+
 Check that the printed `row-major` seam is clearly smaller than `column-major`, then download
 `/kaggle/working/DeepSatModels/app/data/demo_patches.npz` from the notebook output.
 

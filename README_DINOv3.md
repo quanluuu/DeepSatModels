@@ -202,7 +202,7 @@ precomputed by [`app/precompute.py`](app/precompute.py) (25 test patches of fold
 `app/data/demo_patches.npz`), so it needs neither PyTorch nor the DINOv3 weights.
 
 ```bash
-pip install -r app/requirements.txt
+pip install -r requirements.txt   # demo app only
 streamlit run app/crop_recognition_app.py
 ```
 

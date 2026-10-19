@@ -84,3 +84,6 @@ with right:
         st.image(show(img), caption='Area of interest: %.2f ha' % ((x1 - x0) * (y1 - y0) * PIXEL_HA), width='stretch')
     st.caption('Predictions were computed in advance with TSViT_DINOv3 (frozen DINOv3 ViT-S/16 encoder) on '
                'PASTIS test patches; 1 pixel = 10 m × 10 m. Classes: %s.' % ', '.join(CLASS_NAMES[1:]))
+    st.caption('Data: [PASTIS](https://zenodo.org/records/5012942) (Sainte Fare Garnot & Landrieu, 2021), '
+               '[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Changed: 24×24 windows stitched into '
+               '120×120 patches, RGB composite of the clearest date, void labels shown as background.')

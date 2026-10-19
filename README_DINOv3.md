@@ -194,6 +194,21 @@ Observations from this run:
 - Likely reasons for the gap to TSViT: only 3 of 10 bands reach the model, coarser 4×4 output patches, and a domain gap
   between web-image features and 10 m Sentinel-2 imagery.
 
+## Demo app
+
+[`app/crop_recognition_app.py`](app/crop_recognition_app.py) is a Streamlit demo: pick a PASTIS test patch, select an
+area of interest and see the predicted crop map and the area (ha) of each crop inside it. It reads predictions
+precomputed by [`app/precompute.py`](app/precompute.py) (25 test patches of fold 1, stored in
+`app/data/demo_patches.npz`), so it needs neither PyTorch nor the DINOv3 weights.
+
+```bash
+pip install -r app/requirements.txt
+streamlit run app/crop_recognition_app.py
+```
+
+The demo data is derived from [PASTIS](https://zenodo.org/records/5012942) (CC BY 4.0): windows stitched into
+120×120 patches, an RGB composite of the clearest date, and void labels shown as background.
+
 ## Other changes in this branch
 
 | File | Change |

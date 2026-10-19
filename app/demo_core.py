@@ -33,6 +33,18 @@ def clip_roi(roi, shape):
     return max(0, x), max(0, y), min(W, x + w), min(H, y + h)
 
 
+def roi_from_geojson(feature, size=GRID * WIN):
+    """rectangle drawn on a Leaflet CRS.Simple map (lng = column, lat = size - row) -> (x, y, w, h) in pixels, or None"""
+    if not feature:
+        return None
+    pts = np.asarray(feature['geometry']['coordinates'][0], dtype=float)
+    x0, x1 = np.clip([np.floor(pts[:, 0].min()), np.ceil(pts[:, 0].max())], 0, size).astype(int)
+    y0, y1 = np.clip([np.floor(size - pts[:, 1].max()), np.ceil(size - pts[:, 1].min())], 0, size).astype(int)
+    if x1 <= x0 or y1 <= y0:
+        return None
+    return int(x0), int(y0), int(x1 - x0), int(y1 - y0)
+
+
 def area_table(pred, roi):
     """crop rows (class_id, name, ha) inside roi sorted by area, total ha, background ha"""
     x0, y0, x1, y1 = clip_roi(roi, pred.shape)
@@ -107,6 +119,15 @@ if __name__ == "__main__":
     img[2] = 300.
     assert clearest_date(img) == 2
     assert to_rgb_uint8(img[0]).shape == (8, 8, 3)
+
+    # rectangle drawn on the map (Leaflet CRS.Simple: lng = column, lat = 120 - row) -> pixel roi
+    def rect(x0, y0, x1, y1):
+        return {'geometry': {'type': 'Polygon', 'coordinates': [[[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]]]}}
+    assert roi_from_geojson(rect(50, 0, 80, 30)) == (50, 90, 30, 30)
+    assert roi_from_geojson(rect(50.4, 0.2, 79.6, 29.9)) == (50, 90, 30, 30)       # snapped outward to whole pixels
+    assert roi_from_geojson(rect(-20, 100, 10, 160)) == (0, 0, 10, 20)               # clipped to the image
+    assert roi_from_geojson(rect(130, 10, 150, 20)) is None                          # entirely outside
+    assert roi_from_geojson(None) is None
 
     assert len(CLASS_NAMES) == 19 and PALETTE.shape == (19, 3)
     print("demo_core self-check passed")

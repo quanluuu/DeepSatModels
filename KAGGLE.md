@@ -107,6 +107,19 @@ print('eval batches %d (batch %d)' % (n_eval, cfg['DATASETS']['eval']['batch_siz
 print('loss mean first 10 steps %.3f  last 10 steps %.3f' % (sum(losses[:10]) / 10, sum(losses[-10:]) / 10))
 ```
 
+## Demo app data
+
+Attach the output of the training notebook (it contains `models/saved_models/PASTIS24/TSViT_DINOv3_fold1/best.pth`)
+as an input, run cells 1–3, then:
+
+```python
+ckpt = find('TSViT_DINOv3_fold1/best.pth')
+!python -m app.precompute --config configs/PASTIS24/TSViT_DINOv3_fold1.yaml --checkpoint {ckpt} --num-patches 25 --out app/data/demo_patches.npz
+```
+
+Check that the printed `row-major` seam is clearly smaller than `column-major`, then download
+`/kaggle/working/DeepSatModels/app/data/demo_patches.npz` from the notebook output.
+
 ## Runs
 
 ```bash

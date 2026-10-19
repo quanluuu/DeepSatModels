@@ -1,0 +1,5 @@
+# Demo app only (Streamlit Community Cloud reads this file); training/model deps: requirements_dinov3.txt
+streamlit>=1.40
+numpy
+folium>=0.17
+streamlit-folium>=0.22

@@ -123,8 +123,8 @@ Training uses the repository's `masked_cross_entropy`
 skips unlabeled pixels. The model outputs logits `B×K×H×W` (K = 19 classes); they are permuted to `B×H×W×K` and
 
 $$
-\mathcal{L} = -\frac{1}{|M|}\sum_{p \in M} \log \operatorname{softmax}(z_p)_{y_p},
-\qquad M = \{\, p : y_p \neq 19 \,\}
+\mathcal{L} = -\frac{1}{|M|}\sum_{p \in M} \log \mathrm{softmax}(z_p)_{y_p},
+\qquad M = \lbrace p : y_p \neq 19 \rbrace
 $$
 
 where `z_p` are the logits of pixel `p` and `y_p` its label. The mask `M` comes from the `UnkMask` transform and drops

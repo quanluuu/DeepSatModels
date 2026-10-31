@@ -1,8 +1,10 @@
 # model checkpoints and training logs
 *.pth
+*.zip
 TSViT_fold1_full_a100_opt/
 models/saved_models/
 .venv/
 __pycache__/
 ignore/
 tasks/
+docs/

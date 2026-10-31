@@ -8,12 +8,14 @@ import streamlit as st
 import folium
 from folium.plugins import Draw
 from streamlit_folium import st_folium
-from demo_core import PALETTE, area_table, clip_roi, overlay, roi_from_geojson
+from demo_core import CLASS_NAMES, PALETTE, area_table, clip_roi, overlay, panels, roi_from_geojson
 
 DATA = os.environ.get('DEMO_DATA', os.path.join(os.path.dirname(__file__), 'data', 'demo_patches.npz'))
 SIZE = 120                      # stitched patch side in pixels (10 m each)
 DEFAULT_ROI = (30, 30, 60, 60)  # x, y, w, h
 MAP_HEIGHT = 560
+MAP_HEIGHT_ANALYZED = 300   # leaves room for the three result images below the map
+PANEL_PX = 360
 
 
 @st.cache_data
@@ -22,10 +24,18 @@ def load(path):
         return {k: d[k] for k in d.files}
 
 
+SWATCH = '<span style="display:inline-block;width:14px;height:14px;border:1px solid #333;background:rgb(%d,%d,%d)"></span>'
+
+
+def legend(classes):
+    item = '<span style="margin-right:14px;white-space:nowrap">%s %s</span>'
+    return '<div style="text-align:center;font-size:0.85rem;line-height:1.8">%s</div>' % ''.join(
+        item % (SWATCH % tuple(PALETTE[c]), CLASS_NAMES[c]) for c in classes)
+
+
 def result_table(rows, total, background):
     td = '<td style="padding:3px 6px;border:none%s">%s</td>'
-    swatch = '<span style="display:inline-block;width:14px;height:14px;border:1px solid #333;background:rgb(%d,%d,%d)"></span>'
-    cells = ''.join('<tr>%s%s%s</tr>' % (td % ('', swatch % tuple(PALETTE[c])), td % ('', name),
+    cells = ''.join('<tr>%s%s%s</tr>' % (td % ('', SWATCH % tuple(PALETTE[c])), td % ('', name),
                                         td % (';text-align:right', '%.2f ha' % ha)) for c, name, ha in rows)
     cells += '<tr>%s%s%s</tr>' % (td % ('', ''), td % ('', '<i>Background / other</i>'),
                                   td % (';text-align:right', '<i>%.2f ha</i>' % background))
@@ -82,24 +92,32 @@ with left:
     st.caption('Sentinel-2 · Sep 2018 - Nov 2019 · 10 m imagery')
     if st.button('Analyze selected area', key='analyze', type='primary', width='stretch'):
         state['analyzed'] = True
-    show_gt = st.toggle('Show ground truth (PASTIS)', key='gt', disabled=not state.get('analyzed'))
 
 with right:
     roi = state['roi']
-    labels = demo['label'][i] if show_gt else demo['pred'][i]
-    img = overlay(demo['rgb'][i], labels, roi, alpha=0.75 if state.get('analyzed') else 0.0)
-    out = st_folium(area_map(img, roi), key='map-%d-%d' % (i, state['map_gen']), height=MAP_HEIGHT,
+    analyzed = state.get('analyzed')
+    img = overlay(demo['rgb'][i], demo['pred'][i], roi, alpha=0.75 if analyzed else 0.0)
+    out = st_folium(area_map(img, roi), key='map-%d-%d' % (i, state['map_gen']),
+                    height=MAP_HEIGHT_ANALYZED if analyzed else MAP_HEIGHT,
                     use_container_width=True, returned_objects=['last_active_drawing'])
     drawn = roi_from_geojson((out or {}).get('last_active_drawing'))
     if drawn and drawn != roi:
         state['roi'] = drawn
         st.rerun()
+    if analyzed:
+        x0, y0, x1, y1 = clip_roi(roi, demo['rgb'][i].shape)
+        imgs, classes = panels(demo['rgb'][i], demo['pred'][i], demo['label'][i], roi,
+                               scale=max(1, PANEL_PX // max(x1 - x0, y1 - y0)))
+        for col, im, cap in zip(st.columns(3), imgs, ['RGB image (least cloudy date)', 'TSViT_DINOv3 prediction',
+                                                       'PASTIS ground truth']):
+            col.image(im, caption=cap, width='stretch')
+        st.markdown(legend(classes), unsafe_allow_html=True)
 
 with left:
     rows, total, background = area_table(demo['pred'][i], roi)
     with st.container(border=True):
         if state.get('analyzed'):
-            st.markdown('**Result%s**' % (' (prediction)' if show_gt else ''))
+            st.markdown('**Result (prediction)**')
             st.markdown(result_table(rows, total, background), unsafe_allow_html=True)
         else:
             st.markdown('**Ready to analyze**')

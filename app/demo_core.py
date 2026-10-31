@@ -69,11 +69,10 @@ def overlay(rgb, pred, roi, alpha=0.75):
 
 
 def panels(rgb, pred, label, roi, scale=4):
-    """RGB, prediction and ground truth of the roi, each upscaled by repeating pixels; sorted class ids shown"""
+    """RGB, prediction and ground truth of the roi, each upscaled by repeating pixels"""
     x0, y0, x1, y1 = clip_roi(roi, rgb.shape)
-    p, l = pred[y0:y1, x0:x1], label[y0:y1, x0:x1]
-    imgs = [rgb[y0:y1, x0:x1], PALETTE[p], PALETTE[l]]
-    return [i.repeat(scale, 0).repeat(scale, 1) for i in imgs], np.union1d(p, l).tolist()
+    imgs = [rgb[y0:y1, x0:x1], PALETTE[pred[y0:y1, x0:x1]], PALETTE[label[y0:y1, x0:x1]]]
+    return [i.repeat(scale, 0).repeat(scale, 1) for i in imgs]
 
 
 def clearest_date(img):
@@ -137,15 +136,12 @@ if __name__ == "__main__":
     assert roi_from_geojson(rect(130, 10, 150, 20)) is None                          # entirely outside
     assert roi_from_geojson(None) is None
 
-    # side-by-side panels: RGB, prediction, ground truth of the ROI, upscaled by whole pixels; legend = classes shown
-    label = np.zeros_like(pred)
-    label[0, 0] = 5
-    imgs, classes = panels(rgb, pred, label, (55, 95, 10, 10), scale=3)
+    # side-by-side panels: RGB, prediction, ground truth of the ROI, upscaled by whole pixels
+    label = np.full_like(pred, 5)
+    imgs = panels(rgb, pred, label, (55, 95, 10, 10), scale=3)
     assert [p.shape for p in imgs] == [(30, 30, 3)] * 3 and all(p.dtype == np.uint8 for p in imgs)
     assert (imgs[1][:, :15] == PALETTE[0]).all() and (imgs[1][:15, 15:] == PALETTE[2]).all()
-    assert (imgs[1][15:, 15:] == PALETTE[8]).all() and (imgs[2] == PALETTE[0]).all()
-    assert classes == [0, 2, 8]                                    # label pixel (0, 0) with class 5 is outside the ROI
-    assert panels(rgb, pred, label, (0, 0, 120, 120))[1] == [0, 2, 5, 8]
+    assert (imgs[1][15:, 15:] == PALETTE[8]).all() and (imgs[2] == PALETTE[5]).all()
 
     assert len(CLASS_NAMES) == 19 and PALETTE.shape == (19, 3)
     print("demo_core self-check passed")

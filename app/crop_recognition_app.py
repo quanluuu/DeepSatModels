@@ -8,7 +8,7 @@ import streamlit as st
 import folium
 from folium.plugins import Draw
 from streamlit_folium import st_folium
-from demo_core import CLASS_NAMES, PALETTE, area_table, clip_roi, overlay, panels, roi_from_geojson
+from demo_core import PALETTE, area_table, clip_roi, overlay, panels, roi_from_geojson
 
 DATA = os.environ.get('DEMO_DATA', os.path.join(os.path.dirname(__file__), 'data', 'demo_patches.npz'))
 SIZE = 120                      # stitched patch side in pixels (10 m each)
@@ -24,18 +24,10 @@ def load(path):
         return {k: d[k] for k in d.files}
 
 
-SWATCH = '<span style="display:inline-block;width:14px;height:14px;border:1px solid #333;background:rgb(%d,%d,%d)"></span>'
-
-
-def legend(classes):
-    item = '<span style="margin-right:14px;white-space:nowrap">%s %s</span>'
-    return '<div style="text-align:center;font-size:0.85rem;line-height:1.8">%s</div>' % ''.join(
-        item % (SWATCH % tuple(PALETTE[c]), CLASS_NAMES[c]) for c in classes)
-
-
 def result_table(rows, total, background):
     td = '<td style="padding:3px 6px;border:none%s">%s</td>'
-    cells = ''.join('<tr>%s%s%s</tr>' % (td % ('', SWATCH % tuple(PALETTE[c])), td % ('', name),
+    swatch = '<span style="display:inline-block;width:14px;height:14px;border:1px solid #333;background:rgb(%d,%d,%d)"></span>'
+    cells = ''.join('<tr>%s%s%s</tr>' % (td % ('', swatch % tuple(PALETTE[c])), td % ('', name),
                                         td % (';text-align:right', '%.2f ha' % ha)) for c, name, ha in rows)
     cells += '<tr>%s%s%s</tr>' % (td % ('', ''), td % ('', '<i>Background / other</i>'),
                                   td % (';text-align:right', '<i>%.2f ha</i>' % background))
@@ -106,12 +98,11 @@ with right:
         st.rerun()
     if analyzed:
         x0, y0, x1, y1 = clip_roi(roi, demo['rgb'][i].shape)
-        imgs, classes = panels(demo['rgb'][i], demo['pred'][i], demo['label'][i], roi,
+        imgs = panels(demo['rgb'][i], demo['pred'][i], demo['label'][i], roi,
                                scale=max(1, PANEL_PX // max(x1 - x0, y1 - y0)))
         for col, im, cap in zip(st.columns(3), imgs, ['RGB image (least cloudy date)', 'TSViT_DINOv3 prediction',
                                                        'PASTIS ground truth']):
             col.image(im, caption=cap, width='stretch')
-        st.markdown(legend(classes), unsafe_allow_html=True)
 
 with left:
     rows, total, background = area_table(demo['pred'][i], roi)

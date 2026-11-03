@@ -8,3 +8,9 @@ __pycache__/
 ignore/
 tasks/
 docs/
+# local API settings (template: .env.example)
+.env
+
+# model weights come from the GitHub Release weights-v1; only the checksum is committed
+weights/*
+!weights/SHA256SUMS

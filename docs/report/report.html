@@ -19,6 +19,8 @@
   table { border-collapse: collapse; width: 100%; margin: 2mm 0 3mm; font-size: 9.5pt; break-inside: avoid; }
   th, td { border: 1px solid var(--line); padding: 1.2mm 2mm; text-align: left; vertical-align: top; }
   th { background: var(--code-bg); }
+  td code { overflow-wrap: anywhere; }
+  table.tc { table-layout: fixed; font-size: 8.8pt; }
   .step { border-left: 3px solid var(--accent); padding: 1mm 0 1mm 3mm; margin: 3mm 0; break-inside: avoid; }
   .step .k { display: inline-block; min-width: 26mm; color: var(--muted); font-weight: 600; }
   .ok { color: var(--ok); font-weight: 600; } .bad { color: var(--bad); font-weight: 600; }
@@ -59,7 +61,13 @@
     <li>Build image API và demo</li>
     <li>CD: push lên Docker Hub</li>
     <li>Run &amp; Verify</li>
+    <li>AI Model</li>
+    <li>Kiểm thử: AI Acceptance test case</li>
+    <li>Performance: k6 trên <code>/predict</code></li>
+    <li>Troubleshooting</li>
+    <li>Giới hạn hiện tại</li>
   </ol>
+  <p>Phụ lục: Checklist đánh giá README (slide buổi 10)</p>
   <p class="note">Quy ước cho mọi bước: <b>Chạy ở</b> (máy và thư mục), <b>Lệnh</b>, <b>Kết quả đúng</b>. Mọi lệnh và số liệu trong tài liệu này đã được chạy và đo thật trên repo.</p>
 </section>
 
@@ -316,11 +324,11 @@ git push origin v1.0.0</pre>
   </div>
 
   <table>
-    <tr><th>Image</th><th>Tag</th><th>Digest</th><th>Kích thước nén</th></tr>
-    <tr><td><code>quanluuu/deepsat-api</code></td><td><code>1.0.0</code>, <code>latest</code>, <code>sha-c3467e8</code></td><td><code>sha256:46a1357cc685…</code></td><td>565 MB</td></tr>
-    <tr><td><code>quanluuu/deepsat-demo</code></td><td><code>1.0.0</code>, <code>latest</code>, <code>sha-c3467e8</code></td><td><code>sha256:ebcb1fef9764…</code></td><td>176 MB</td></tr>
+    <tr><th>Image</th><th>Tag</th><th>Digest (index)</th><th>Digest linux/amd64</th><th>Kích thước nén</th></tr>
+    <tr><td><code>quanluuu/deepsat-api</code></td><td><code>1.0.0</code>, <code>latest</code>, <code>sha-c3467e8</code></td><td><code>sha256:46a1357cc685…</code></td><td><code>e7baf204513f</code></td><td>565 MB</td></tr>
+    <tr><td><code>quanluuu/deepsat-demo</code></td><td><code>1.0.0</code>, <code>latest</code>, <code>sha-c3467e8</code></td><td><code>sha256:ebcb1fef9764…</code></td><td><code>e58ea2c04c70</code></td><td>176 MB</td></tr>
   </table>
-  <p class="note">Ba tag của mỗi image trỏ cùng một digest, vì cùng commit <code>c3467e8</code>. Số liệu lấy từ API công khai <code>hub.docker.com/v2/repositories/quanluuu/&lt;repo&gt;/tags</code>.</p>
+  <p class="note">Ba tag của mỗi image trỏ cùng một digest, vì cùng commit <code>c3467e8</code>. Trang Tags của Docker Hub hiện digest của image linux/amd64, nên đó là cột thứ tư. Số liệu lấy từ API công khai <code>hub.docker.com/v2/repositories/quanluuu/&lt;repo&gt;/tags</code>.</p>
   <figure>
     <img src="img/dockerhub-tags.png" alt="Trang tag trên Docker Hub">
     <figcaption>Hình 3 — Trang Tags của quanluuu/deepsat-api trên Docker Hub.</figcaption>
@@ -387,6 +395,150 @@ smoke test passed</pre>
 curl http://localhost:8501/_stcore/health</pre>
     <div><span class="k">Kết quả đúng:</span> <code>ok</code>. Mở http://localhost:8501, chọn vùng và bấm Analyze: app hiện bản đồ cây trồng và bảng diện tích (ha).</div>
   </div>
+</section>
+
+<section>
+  <h2>9. AI Model</h2>
+  <p>Hồ sơ model theo mẫu slide buổi 7. Bản đầy đủ: <code>api/MODEL_CARD.md</code>.</p>
+  <table>
+    <tr><th>Trường</th><th>Giá trị</th></tr>
+    <tr><td>model_name</td><td><code>TSViT_DINOv3</code> (<code>models/TSViT/TSViT_dinov3.py</code>). Backbone DINOv3 ViT-S/16 đóng băng cho từng ảnh RGB, sau đó là encoder thời gian và không gian của TSViT.</td></tr>
+    <tr><td>model_version</td><td><code>tsvit-dinov3-fold1-t9</code> (env <code>MODEL_VERSION</code>). Giá trị này có trong mọi response <code>/health</code> và <code>/predict</code>.</td></tr>
+    <tr><td>checkpoint</td><td><code>best.pth</code>, 89 MB, run T9 (30 epoch, warm start), SHA-256 <code>eef5b780…bf695</code>. File chứa cả weights của head và của backbone DINOv3.</td></tr>
+    <tr><td>trained_on</td><td>PASTIS24 fold 1: train fold 1–3, eval fold 4, test fold 5. Một mùa vụ (09/2018 – 11/2019), Pháp.</td></tr>
+    <tr><td>metrics</td><td>Test (fold 5): mIoU 53.9%, OA 79.6%. Latency CPU của một cửa sổ không tải: 0.5–1.1 s (smoke test 592 ms, <code>/predict</code> 554 ms, k6 min 922 ms).</td></tr>
+    <tr><td>threshold</td><td><code>CONFIDENCE_THRESHOLD</code> = 0.80, tính trên trung bình max-softmax của cửa sổ. ≥ 0.80 cho <code>OK</code>, &lt; 0.80 cho <code>UNCERTAIN</code>.</td></tr>
+    <tr><td>timeout</td><td><code>INFER_TIMEOUT_S</code> = 10 s. Timeout hoặc lỗi model cho <code>FALLBACK</code> với <code>pred = null</code>.</td></tr>
+    <tr><td>known_limitations</td><td>Xem mục 13.</td></tr>
+  </table>
+  <h3>Input và output của <code>POST /predict</code></h3>
+  <table>
+    <tr><th></th><th>Mô tả</th></tr>
+    <tr><td>Input</td><td>Multipart field <code>file</code> là một file <code>.npz</code>, tối đa 5 MB, gồm <code>img</code> shape (T, 10, 24, 24) với 10 band Sentinel-2 theo thứ tự PASTIS, và <code>doy</code> shape (T,) là ngày trong năm 1..366. T nằm trong 1..60. File được đọc với <code>allow_pickle=False</code>.</td></tr>
+    <tr><td>Tiền xử lý</td><td><code>PASTIS_segmentation_transform(is_training=False)</code>: dùng lại đúng code lúc train (chuẩn hoá theo band của fold 1, thêm kênh day-of-year, pad đến 60 ngày).</td></tr>
+    <tr><td>Output</td><td><code>status</code> (OK / UNCERTAIN / FALLBACK), <code>confidence</code>, <code>pred</code> 24 × 24 mã lớp 0..18, <code>class_names</code>, <code>area_ha</code> theo lớp (1 pixel = 0.01 ha), <code>model_version</code>, <code>latency_ms</code>; khi FALLBACK có thêm <code>message</code>.</td></tr>
+    <tr><td>Lỗi input</td><td>HTTP 422 với <code>detail</code> mô tả lỗi; model không được gọi.</td></tr>
+  </table>
+</section>
+
+<section>
+  <h2>10. Kiểm thử: AI Acceptance test case</h2>
+  <div class="step">
+    <h3>Bước 10.1 — Chạy toàn bộ test</h3>
+    <div><span class="k">Chạy ở:</span> thư mục gốc repo, venv đã bật</div>
+<pre>pytest -v tests/test_api.py</pre>
+    <div><span class="k">Kết quả đúng:</span> <code>22 passed</code>. Cả bộ test (<code>pytest -q</code>) cho <code>46 passed</code>: 22 test API, 20 unit test <code>demo_core</code>, 4 AppTest Streamlit.</div>
+  </div>
+  <p>AC-AI-01..07 dùng stub predictor nên chạy được trên mọi máy, kể cả job <code>test-api</code>. AC-AI-08 cần model thật và chạy trong container ở job <code>docker</code>.</p>
+  <table class="tc">
+    <colgroup><col style="width:11%"><col style="width:12%"><col style="width:25%"><col style="width:22%"><col style="width:20%"><col style="width:10%"></colgroup>
+    <tr><th>ID</th><th>Loại</th><th>Input / điều kiện</th><th>Expected</th><th>Test</th><th>Kết quả</th></tr>
+    <tr><td>AC-AI-01</td><td>Unit</td><td><code>status_of</code> với confidence 0.95 / 0.80 / 0.79 / 0.20, ngưỡng 0.80</td><td>OK / OK / UNCERTAIN / UNCERTAIN</td><td><code>test_status_of</code> (4)</td><td class="ok">PASS</td></tr>
+    <tr><td>AC-AI-02</td><td>Integration (stub)</td><td>File mẫu thật, stub trả confidence 0.94</td><td>200, <code>status=OK</code>, có <code>model_version</code>, <code>pred</code> 24 × 24, <code>area_ha</code> đúng</td><td><code>test_confident_prediction_is_ok</code></td><td class="ok">PASS</td></tr>
+    <tr><td>AC-AI-03</td><td>Integration (stub)</td><td>Stub trả confidence 0.55; thêm ca ngưỡng 0.5</td><td>200, <code>status=UNCERTAIN</code> (ngưỡng 0.5: OK)</td><td><code>test_low_confidence_is_uncertain</code>, <code>test_threshold_is_configurable</code></td><td class="ok">PASS</td></tr>
+    <tr><td>AC-AI-04</td><td>Integration (stub)</td><td>Stub ngủ quá timeout; stub raise lỗi; request timeout khi còn trong hàng đợi</td><td>200, <code>status=FALLBACK</code>, <code>pred=null</code>, có <code>message</code>; request đã timeout không được chạy</td><td><code>test_timeout_falls_back</code>, <code>test_model_error_falls_back</code>, <code>test_timed_out_request_still_queued_is_not_run</code></td><td class="ok">PASS</td></tr>
+    <tr><td>AC-AI-05</td><td>Negative</td><td>File <code>.exe</code> đổi tên thành <code>.npz</code>; file <code>.npy</code> thường</td><td>422, model không bị gọi</td><td><code>test_bad_input_is_422_and_model_not_called</code>, <code>test_plain_npy_is_rejected</code></td><td class="ok">PASS</td></tr>
+    <tr><td>AC-AI-06</td><td>Negative (security)</td><td><code>.npz</code> chứa object array (pickle)</td><td>422, không unpickle</td><td><code>test_bad_input_is_422_and_model_not_called</code></td><td class="ok">PASS</td></tr>
+    <tr><td>AC-AI-07</td><td>Boundary</td><td>T = 61, T = 0, thiếu <code>doy</code>, sai kích thước cửa sổ, sai số band, <code>doy</code> lệch độ dài, doy = 0 hoặc 400, file &gt; 5 MB</td><td>422 với thông báo lỗi</td><td><code>test_bad_input_is_422_and_model_not_called</code> (8 ca)</td><td class="ok">PASS</td></tr>
+    <tr><td>AC-AI-08</td><td>System (model thật)</td><td>Container <code>deepsat-api:ci</code>, file <code>tests/fixtures/window.npz</code></td><td><code>/health</code> ok; <code>/predict</code> 200, OK hoặc UNCERTAIN, <code>pred</code> 24 × 24 giá trị 0..18; file sai cho 422</td><td><code>scripts/smoke_api.py</code></td><td class="ok">PASS</td></tr>
+  </table>
+  <p class="note">AC-AI-08 pass trong job <code>docker</code> của mọi run xanh ở mục 5 và pass trên uvicorn local (bước 8.4, confidence 0.9245, <code>pred</code> khớp 576/576 pixel với kết quả tính sẵn). Ca "lưu kết quả sau khi người dùng sửa" của slide không áp dụng: API không lưu trạng thái, còn app demo chỉ hiển thị kết quả.</p>
+</section>
+
+<section>
+  <h2>11. Performance: k6 trên <code>/predict</code></h2>
+  <h3>Performance Test Plan</h3>
+  <table>
+    <tr><th>Mục</th><th>Nội dung</th></tr>
+    <tr><td>Endpoint</td><td><code>POST /predict</code></td></tr>
+    <tr><td>Workload</td><td>5 VUs, 2 phút; mỗi VU gửi 1 request rồi nghỉ 1 s</td></tr>
+    <tr><td>Test data</td><td><code>tests/fixtures/window.npz</code>, 381 KB, 43 ngày</td></tr>
+    <tr><td>Success criteria</td><td>p95 &lt; 5 s, error rate &lt; 1%, mọi response có <code>model_version</code> và <code>status</code> hợp lệ. Tiêu chí được chốt trước khi đo.</td></tr>
+    <tr><td>Metrics</td><td>p50, p95, p99, error rate, UNCERTAIN rate (unknown), FALLBACK rate</td></tr>
+    <tr><td>Environment</td><td>Laptop Intel Core i7-1355U (10 nhân, 12 luồng), RAM 15.7 GB, Windows 11; uvicorn 1 process trên CPU, không chạy trong container; model <code>tsvit-dinov3-fold1-t9</code></td></tr>
+  </table>
+  <div class="step">
+    <h3>Bước 11.1 — Chạy k6</h3>
+    <div><span class="k">Chạy ở:</span> thư mục gốc repo; API đang chạy ở <code>http://localhost:8000</code> (bước 8.1 hoặc 8.5); đã cài k6 (<code>winget install k6</code>)</div>
+<pre>k6 run --summary-export docs/report/k6-summary.json tests/load/predict.js</pre>
+    <div><span class="k">Kết quả đúng:</span> k6 in bảng tổng kết, đánh dấu ✓ hoặc ✗ cho từng threshold. Nếu có threshold bị vượt, k6 thoát với mã khác 0.</div>
+  </div>
+  <h3>Kết quả</h3>
+  <table>
+    <tr><th>Chỉ số</th><th>Run 1 (trước tối ưu)</th><th>Run 2 (sau tối ưu, <code>764baf8</code>)</th><th>Tiêu chí</th></tr>
+    <tr><td>Số request</td><td>57</td><td>138</td><td>—</td></tr>
+    <tr><td>Throughput</td><td>0.44 req/s</td><td>1.12 req/s</td><td>—</td></tr>
+    <tr><td>p50</td><td>10.04 s</td><td>3.25 s</td><td>—</td></tr>
+    <tr><td>p95</td><td class="bad">10.07 s</td><td class="bad">5.62 s</td><td>&lt; 5 s</td></tr>
+    <tr><td>p99</td><td>10.16 s</td><td>6.68 s</td><td>—</td></tr>
+    <tr><td>Error rate (HTTP)</td><td class="ok">0% (0/57)</td><td class="ok">0% (0/138)</td><td>&lt; 1%</td></tr>
+    <tr><td>UNCERTAIN rate (unknown)</td><td>0%</td><td>0%</td><td>—</td></tr>
+    <tr><td>FALLBACK rate</td><td class="bad">94.7% (54/57)</td><td class="ok">0% (0/138)</td><td>—</td></tr>
+    <tr><td>Checks</td><td>100%</td><td>100% (414/414)</td><td>&gt; 99%</td></tr>
+  </table>
+  <p class="note">Số liệu thô: <code>docs/report/k6-summary-run1.json</code>, <code>docs/report/k6-run1.txt</code> (run 1); <code>docs/report/k6-summary.json</code>, <code>docs/report/k6-run2.txt</code> (run 2).</p>
+  <h3>Bottleneck và tối ưu</h3>
+  <ul>
+    <li><b>Run 1:</b> API chỉ chạy một inference tại một thời điểm (<code>ThreadPoolExecutor(max_workers=1)</code>), nên 5 request phải xếp hàng. Request chờ quá 10 s nhận FALLBACK, nhưng inference của nó vẫn chạy sau đó. Vì vậy hàng đợi không bao giờ giảm.</li>
+    <li><b>Tối ưu:</b> khi request timeout, gọi <code>future.cancel()</code> để bỏ inference còn trong hàng đợi. Commit <code>764baf8</code> có kèm test <code>test_timed_out_request_still_queued_is_not_run</code>.</li>
+    <li><b>Run 2:</b> FALLBACK giảm từ 94.7% xuống 0%, throughput tăng 2.5 lần, p50 giảm từ 10.04 s xuống 3.25 s.</li>
+  </ul>
+  <h3>Kết luận: <span class="bad">FAIL</span></h3>
+  <p>Error rate đạt (0%), nhưng p95 = 5.62 s vượt tiêu chí 5 s. Bottleneck chính là năng lực CPU: mỗi inference mất khoảng 1 s, và 5 người dùng đồng thời dùng chung một worker. Hướng xử lý tiếp: chạy nhiều worker uvicorn trên máy nhiều nhân, chạy GPU, hoặc giới hạn số request đồng thời rồi trả <code>503</code> sớm thay cho xếp hàng.</p>
+</section>
+
+<section>
+  <h2>12. Troubleshooting</h2>
+  <p>7 lỗi đầu đã gặp thật trong quá trình làm. 2 lỗi cuối chưa gặp, nhưng dễ xảy ra khi làm lại các bước trong tài liệu này.</p>
+  <table>
+    <tr><th>Lỗi / dấu hiệu</th><th>Nguyên nhân</th><th>Cách xử lý</th></tr>
+    <tr><td>Job <code>docker</code> đỏ ở <b>Smoke test demo container</b> sau 0 s, dù container demo vẫn khởi động bình thường</td><td><code>docker-proxy</code> nhận kết nối rồi reset khi Streamlit chưa listen; <code>--retry-connrefused</code> không retry lỗi reset</td><td>Dùng <code>curl --retry 45 --retry-all-errors --retry-delay 2</code> (commit <code>88d3a2d</code>)</td></tr>
+    <tr><td>Docker Desktop cài lỗi ở bước <code>EnableFeaturesAction</code>, DISM trả mã <code>14098</code>; lần đầu báo thiếu dung lượng ổ C:</td><td>Component store của Windows bị hỏng; ổ C: gần đầy</td><td>Chuyển mọi bước <code>docker build/run</code> lên runner GitHub Actions. Trên máy local, kiểm bằng uvicorn và Streamlit. Muốn sửa Windows: <code>DISM /Online /Cleanup-Image /RestoreHealth</code></td></tr>
+    <tr><td><code>ModuleNotFoundError: No module named 'fastapi'</code> khi chạy <code>pytest</code></td><td>Dùng Python hệ thống thay cho venv của repo</td><td>Bật venv, hoặc gọi <code>.venv/Scripts/python.exe -m pytest</code>; cài <code>pip install -r api/requirements.txt -r requirements-dev.txt</code></td></tr>
+    <tr><td>k6: 94.7% response FALLBACK, p95 ≈ 10 s</td><td>Request đã timeout vẫn chạy inference, làm hàng đợi không giảm (mục 11)</td><td>Huỷ future khi timeout (commit <code>764baf8</code>)</td></tr>
+    <tr><td><code>bash: k6: command not found</code> ngay sau <code>winget install k6</code></td><td>Terminal đang mở chưa nhận PATH mới</td><td>Mở terminal mới, hoặc gọi đường dẫn đầy đủ <code>"/c/Program Files/k6/k6.exe"</code></td></tr>
+    <tr><td>Server uvicorn tự tắt không có log, mọi request bị <code>connection refused</code></td><td>Ổ C: hết chỗ, file tạm của Python/torch không ghi được</td><td>Đặt <code>TMP</code> và <code>TEMP</code> sang ổ khác, dọn ổ C:, rồi chờ <code>/health</code> trả ok trước khi chạy k6</td></tr>
+    <tr><td>Ruff báo <code>E501 Line too long (147 &gt; 130)</code> ở code có sẵn khi mới bật lint</td><td>Code gốc có dòng 147 ký tự, vượt giới hạn 130 đặt lúc đầu</td><td>Đặt <code>line-length = 150</code> trong <code>pyproject.toml</code>, không sửa code gốc</td></tr>
+    <tr><td><code>sha256sum: WARNING: 1 computed checksum did NOT match</code></td><td><code>best.pth</code> tải về bị hỏng hoặc sai version</td><td>Tải lại từ Release <code>weights-v1</code>; job CI dừng ở bước này nên không build image sai weights</td></tr>
+    <tr><td><code>Address already in use</code> / <code>port is already allocated</code> ở cổng 8000</td><td>Server hoặc container cũ vẫn chạy</td><td><code>docker rm -f deepsat-api</code>, hoặc dừng uvicorn cũ (Ctrl+C), hoặc đổi cổng <code>-p 8001:8000</code></td></tr>
+  </table>
+</section>
+
+<section>
+  <h2>13. Giới hạn hiện tại</h2>
+  <h3>Model</h3>
+  <ul>
+    <li>Model overfit khi train: eval loss tăng từ 0.577 (step 4000) lên 0.965 (step 22000). Config không dùng weight decay và augmentation.</li>
+    <li>DINOv3 chỉ nhìn 3/10 band (B4, B3, B2) và được pretrain trên ảnh web.</li>
+    <li>Patch 4 × 4 pixel cho ranh giới thửa ruộng thô hơn TSViT gốc.</li>
+    <li>Chỉ test trên một fold, một mùa vụ, một nước (Pháp). Vùng và năm khác chưa được đánh giá.</li>
+    <li>Confidence là softmax của model chưa calibrate. Confidence cao không bảo đảm bản đồ đúng. Ngưỡng 0.80 lấy theo slide, chưa tune trên tập eval.</li>
+  </ul>
+  <h3>Hệ thống</h3>
+  <ul>
+    <li>Tiêu chí hiệu năng chưa đạt: p95 = 5.62 s với 5 người dùng đồng thời trên CPU (mục 11).</li>
+    <li>Mỗi request chỉ xử lý một cửa sổ 240 m × 240 m. API không ghép vùng lớn hơn.</li>
+    <li>API không có xác thực, giới hạn tần suất hay HTTPS. Chỉ nên chạy trong mạng tin cậy.</li>
+    <li>Image chỉ build cho <code>linux/amd64</code>; image API nặng 565 MB (nén) vì có torch.</li>
+    <li>App demo dùng kết quả tính sẵn cho 25 patch, không gọi API.</li>
+    <li>Máy tác giả không chạy được Docker, nên <code>docker run</code> chỉ được kiểm trên runner CI. k6 đo trên uvicorn local, chưa đo trong container.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Phụ lục: Checklist đánh giá README (slide buổi 10)</h2>
+  <table>
+    <tr><th>Câu hỏi kiểm tra</th><th>Đạt?</th><th>Ở đâu trong tài liệu</th></tr>
+    <tr><td>Người lạ có hiểu dự án làm gì trong 1 phút không?</td><td class="ok">☑</td><td>Mục 1, 2</td></tr>
+    <tr><td>Có ghi rõ OS, version, dependency, model file không?</td><td class="ok">☑</td><td>Mục 3; model file ở 4.4, 9</td></tr>
+    <tr><td>Có lệnh setup từng bước không?</td><td class="ok">☑</td><td>Mục 4, 5.1</td></tr>
+    <tr><td>Có lệnh chạy và expected output không?</td><td class="ok">☑</td><td>Mục 5–8, 10.1, 11.1</td></tr>
+    <tr><td>Có mô tả input/output của model AI không?</td><td class="ok">☑</td><td>Mục 9</td></tr>
+    <tr><td>Có ví dụ API hoặc screenshot giao diện không?</td><td class="ok">☑</td><td>Bước 8.2–8.4, Hình 1–4</td></tr>
+    <tr><td>Có troubleshooting cho lỗi thường gặp không?</td><td class="ok">☑</td><td>Mục 12 (9 lỗi)</td></tr>
+    <tr><td>Có giới hạn hiện tại của hệ thống không?</td><td class="ok">☑</td><td>Mục 13</td></tr>
+  </table>
+  <p><b>Kết quả: 8/8.</b></p>
 </section>
 
 </body>

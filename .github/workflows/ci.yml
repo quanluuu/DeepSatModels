@@ -1,5 +1,5 @@
-# CI: lint + tests on every PR to main and every push to main (SPEC-delivery-pipeline).
-# The docker job (build, smoke test, push to Docker Hub) is added in T11.
+# CI/CD (SPEC-delivery-pipeline): lint + tests on every PR and push to main; then the docker job builds both images,
+# smoke-tests them and, on pushes only (main or a v*.*.* tag), pushes them to Docker Hub.
 name: ci
 
 on:
@@ -67,3 +67,124 @@ jobs:
         run: pip install numpy -r api/requirements.txt -r requirements-dev.txt
       - name: API contract tests (AC-AI-01..07)
         run: pytest -q tests/test_api.py
+
+  docker:
+    needs: [lint, test-demo, test-api]
+    runs-on: ubuntu-latest
+    env:
+      API_IMAGE: quanluuu/deepsat-api
+      DEMO_IMAGE: quanluuu/deepsat-demo
+      DINOV3_COMMIT: 6876159a11b4df116f30f667f8c9888617df0751   # same snapshot as the Kaggle training run
+      PUSH: ${{ github.event_name == 'push' }}                   # PRs build and smoke-test only
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download weights (Release weights-v1)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download weights-v1 --pattern best.pth --dir weights
+
+      - name: Verify weights checksum
+        working-directory: weights
+        run: sha256sum -c SHA256SUMS
+
+      - name: Fetch DINOv3 code snapshot
+        run: |
+          git init -q weights/dinov3
+          git -C weights/dinov3 fetch -q --depth 1 https://github.com/facebookresearch/dinov3.git "$DINOV3_COMMIT"
+          git -C weights/dinov3 checkout -q FETCH_HEAD
+          test -f weights/dinov3/hubconf.py
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Tags for the API image
+        id: meta-api
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.API_IMAGE }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=sha-,format=short
+            type=semver,pattern={{version}}
+
+      - name: Tags for the demo image
+        id: meta-demo
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DEMO_IMAGE }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=sha-,format=short
+            type=semver,pattern={{version}}
+
+      - name: Build API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/api.Dockerfile
+          load: true
+          tags: deepsat-api:ci
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+
+      - name: Build demo image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/demo.Dockerfile
+          load: true
+          tags: deepsat-demo:ci
+          cache-from: type=gha,scope=demo
+          cache-to: type=gha,scope=demo,mode=max
+
+      - name: Image sizes (API < 2.5 GB, demo < 600 MB)
+        run: |
+          api=$(docker image inspect deepsat-api:ci --format '{{.Size}}')
+          demo=$(docker image inspect deepsat-demo:ci --format '{{.Size}}')
+          echo "deepsat-api  $((api / 1048576)) MB"
+          echo "deepsat-demo $((demo / 1048576)) MB"
+          test "$api" -lt 2684354560 && test "$demo" -lt 629145600
+
+      - name: Model loads without network
+        run: docker run --rm --network none deepsat-api:ci python -c "from api.predictor import Predictor; p = Predictor.from_env(); print('loaded', p.model_version)"
+
+      - name: Smoke test API container (AC-AI-08)
+        run: |
+          docker run -d --name api -p 8000:8000 deepsat-api:ci
+          python3 scripts/smoke_api.py http://localhost:8000 --wait 180 || { docker logs api; exit 1; }
+
+      - name: Smoke test demo container
+        run: |
+          docker run -d --name demo -p 8501:8501 deepsat-demo:ci
+          curl -fsS --retry 30 --retry-connrefused --retry-delay 2 http://localhost:8501/_stcore/health || { docker logs demo; exit 1; }
+
+      - name: Log in to Docker Hub
+        if: env.PUSH == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Push API image
+        if: env.PUSH == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/api.Dockerfile
+          push: true
+          tags: ${{ steps.meta-api.outputs.tags }}
+          labels: ${{ steps.meta-api.outputs.labels }}
+          cache-from: type=gha,scope=api
+
+      - name: Push demo image
+        if: env.PUSH == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/demo.Dockerfile
+          push: true
+          tags: ${{ steps.meta-demo.outputs.tags }}
+          labels: ${{ steps.meta-demo.outputs.labels }}
+          cache-from: type=gha,scope=demo

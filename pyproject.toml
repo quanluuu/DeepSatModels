@@ -1,0 +1,10 @@
+# tool config only (ruff, pytest); the project is not packaged
+[tool.ruff]
+line-length = 150   # existing app code goes up to 147 chars
+
+[tool.ruff.lint]
+select = ["E", "F"]
+
+[tool.pytest.ini_options]
+pythonpath = ["app", "."]   # the app imports `from demo_core import ...`
+testpaths = ["tests"]

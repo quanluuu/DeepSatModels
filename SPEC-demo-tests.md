@@ -6,7 +6,7 @@ Tạo bộ kiểm tra tự động cho app demo để CI có cái để chạy. 
 
 Acceptance criteria:
 
-1. `pytest` có test cho mọi hàm public của `app/demo_core.py`: `stitch`, `clip_roi`, `roi_from_geojson`, `area_table`, `overlay`, `panels`, `clearest_date`, `to_rgb_uint8`. Mọi assert trong khối `__main__` hiện có đều được chuyển sang pytest, không bỏ case nào.
+1. `pytest` có test cho mọi hàm public của `app/demo_core.py`: `stitch`, `clip_roi`, `to_lonlat`, `to_pixel`, `outline`, `geo_bounds`, `roi_from_lonlat`, `warp`, `area_table`, `panels`, `clearest_date`, `to_rgb_uint8` (danh sách theo commit `9e25cdd`). Mọi assert trong khối `__main__` hiện có đều được chuyển sang pytest, không bỏ case nào.
 2. `tests/test_app.py` dùng `streamlit.testing.v1.AppTest` chạy `app/crop_recognition_app.py` với `app/data/demo_patches.npz` thật. Test pass khi app render xong mà không có exception.
 3. Khi `DEMO_DATA` trỏ tới file không tồn tại, app hiện `st.error` và có test cho trường hợp đó.
 4. `ruff check app tests` không báo lỗi.
@@ -28,7 +28,7 @@ pytest -q tests/test_demo_core.py tests/test_app.py
 
 ```text
 + requirements-dev.txt   -> pytest, ruff
-+ pyproject.toml         -> [tool.ruff] line-length = 130, include app/ tests/ api/; [tool.pytest.ini_options] pythonpath = ["app", "."]
++ pyproject.toml         -> [tool.ruff] line-length = 150 (code app/ hiện dài tới 147), select E, F; [tool.pytest.ini_options] pythonpath = ["app", "."]
 + tests/test_demo_core.py
 + tests/test_app.py
 ```

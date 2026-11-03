@@ -1,0 +1,23 @@
+# allowlist: only what docker/api.Dockerfile and docker/demo.Dockerfile copy reaches the build context
+*
+!LICENSE.txt
+!requirements.txt
+!requirements_dinov3.txt
+!app/crop_recognition_app.py
+!app/demo_core.py
+!app/data/demo_patches.npz
+!api/
+!models/
+!utils/
+!data/
+!configs/PASTIS24/TSViT_DINOv3_fold1.yaml
+!weights/best.pth
+!weights/dinov3/
+
+# never ship caches, saved checkpoints, datasets or git history of the dinov3 snapshot
+**/__pycache__
+**/*.pyc
+models/saved_models
+data/**/*.pickle
+weights/dinov3/.git
+.env

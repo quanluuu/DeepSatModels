@@ -61,7 +61,7 @@ def create_app(predictor=None, threshold=None, timeout_s=None):
         predictor = Predictor.from_env()
     threshold = float(os.environ.get('CONFIDENCE_THRESHOLD', 0.80)) if threshold is None else threshold
     timeout_s = float(os.environ.get('INFER_TIMEOUT_S', 10)) if timeout_s is None else timeout_s
-    pool = ThreadPoolExecutor(max_workers=1)    # one inference at a time; a timed-out one still finishes in the background
+    pool = ThreadPoolExecutor(max_workers=1)    # one inference at a time; a timed-out running one still finishes in the background
     app = FastAPI(title='DeepSatModels inference API')
 
     @app.get('/health')
@@ -76,9 +76,11 @@ def create_app(predictor=None, threshold=None, timeout_s=None):
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e))
         out = {'model_version': predictor.model_version, 'class_names': CLASS_NAMES}
+        future = pool.submit(predictor.predict, img, doy)
         try:
-            pred, confidence = pool.submit(predictor.predict, img, doy).result(timeout=timeout_s)
+            pred, confidence = future.result(timeout=timeout_s)
         except Exception as e:      # timeout or model failure: the caller falls back to manual work, the service stays up
+            future.cancel()         # still queued: drop it so nobody waits behind work whose caller already got FALLBACK
             reason = 'timed out after %g s' % timeout_s if isinstance(e, TimeoutError) else 'failed (%s)' % type(e).__name__
             out.update(status='FALLBACK', confidence=None, pred=None, area_ha=None,
                        message='Inference %s; use the precomputed demo or label the area manually.' % reason)

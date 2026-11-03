@@ -89,6 +89,15 @@ def test_timeout_falls_back():
     assert body['model_version'] == 'stub-v0'
 
 
+def test_timed_out_request_still_queued_is_not_run():
+    stub = StubPredictor(sleep=0.3)
+    c = client(stub, timeout_s=0.1)
+    post(c, npz_bytes(**window()))      # runs, times out, keeps the worker busy for 0.2 s more
+    body = post(c, npz_bytes(**window())).json()     # queued behind it, times out before it starts
+    time.sleep(0.4)
+    assert body['status'] == 'FALLBACK' and stub.calls == 1
+
+
 def test_model_error_falls_back():
     body = post(client(StubPredictor(error=RuntimeError('boom'))), npz_bytes(**window())).json()
     assert body['status'] == 'FALLBACK' and body['pred'] is None

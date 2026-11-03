@@ -1,4 +1,4 @@
-# inference API on top of requirements_dinov3.txt (torch CPU is installed separately, see api/MODEL_CARD.md)
+# inference API on top of requirements_dinov3.txt; install torch CPU first: pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 fastapi>=0.162
 uvicorn>=0.54
 python-multipart>=0.0.32

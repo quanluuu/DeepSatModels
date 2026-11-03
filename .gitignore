@@ -8,3 +8,5 @@ __pycache__/
 ignore/
 tasks/
 docs/
+# local API settings (template: .env.example)
+.env

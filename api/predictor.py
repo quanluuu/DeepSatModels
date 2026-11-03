@@ -16,16 +16,16 @@ class Predictor:
 
     @classmethod
     def from_env(cls):
-        """model from MODEL_CONFIG + CHECKPOINT_PATH; DINOV3_REPO / DINOV3_WEIGHTS override the Kaggle paths in the config"""
+        """model from MODEL_CONFIG + CHECKPOINT_PATH; DINOV3_REPO is the local facebookresearch/dinov3 snapshot (code only)"""
         cfg = read_yaml(os.environ.get('MODEL_CONFIG', 'configs/PASTIS24/TSViT_DINOv3_fold1.yaml'))['MODEL']
-        cfg['dinov3_repo'] = os.environ.get('DINOV3_REPO', cfg['dinov3_repo'])
-        cfg['dinov3_weights'] = os.environ.get('DINOV3_WEIGHTS', cfg['dinov3_weights'])
         threads = int(os.environ.get('TORCH_THREADS', 0))
         if threads:
             torch.set_num_threads(threads)
-        model = TSViT_DINOv3(cfg)
+        # the checkpoint holds the frozen backbone too, so the DINOv3 architecture is built without its pretrained weights file
+        backbone = torch.hub.load(os.environ.get('DINOV3_REPO', 'weights/dinov3'), 'dinov3_vits16', source='local', pretrained=False)
+        model = TSViT_DINOv3(cfg, backbone=backbone)
         state = torch.load(os.environ.get('CHECKPOINT_PATH', 'weights/best.pth'), map_location='cpu', weights_only=True)
-        model.load_state_dict(state, strict=True)       # the checkpoint holds the fine-tuned head and the frozen backbone
+        model.load_state_dict(state, strict=True)       # strict: every backbone and head tensor must come from the checkpoint
         return cls(model, PASTIS_segmentation_transform(cfg, is_training=False),
                    os.environ.get('MODEL_VERSION', 'tsvit-dinov3-fold1-t9'))
 

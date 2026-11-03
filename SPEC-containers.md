@@ -24,7 +24,7 @@ Acceptance criteria:
 
 ```bash
 # weights chuẩn bị sẵn (CI tải từ Release, xem delivery-pipeline)
-ls weights/   # best.pth  dinov3/  dinov3_vits16_pretrain_lvd1689m-08c60483.pth  SHA256SUMS
+ls weights/   # best.pth  dinov3/ (code, commit 6876159)  SHA256SUMS
 
 docker build -f docker/api.Dockerfile  -t deepsat-api  .
 docker build -f docker/demo.Dockerfile -t deepsat-demo .

@@ -65,7 +65,6 @@ pip install -r requirements_dinov3.txt -r api/requirements.txt -r requirements-d
 set MODEL_CONFIG=configs/PASTIS24/TSViT_DINOv3_fold1.yaml
 set CHECKPOINT_PATH=weights/best.pth
 set DINOV3_REPO=weights/dinov3
-set DINOV3_WEIGHTS=weights/dinov3_vits16_pretrain_lvd1689m-08c60483.pth
 uvicorn --factory api.main:create_app --host 0.0.0.0 --port 8000
 
 curl http://127.0.0.1:8000/health
@@ -79,15 +78,15 @@ pytest -q tests/test_api.py
 ```text
 + api/__init__.py
 + api/main.py          -> create_app(predictor) + biến app; route /health, /predict; validate input; timeout
-+ api/predictor.py     -> load model từ env, preprocess, inference, confidence, status
++ api/predictor.py     -> dựng backbone `dinov3_vits16` (`pretrained=False`) từ `DINOV3_REPO`, load checkpoint (chứa cả backbone), preprocess, inference, confidence, status
 + api/requirements.txt -> fastapi, uvicorn, python-multipart
 + api/MODEL_CARD.md    -> model_name, model_version, trained_on, metrics, threshold, known_limitations (slide buổi 7)
-+ .env.example         -> MODEL_CONFIG, CHECKPOINT_PATH, DINOV3_REPO, DINOV3_WEIGHTS, CONFIDENCE_THRESHOLD, INFER_TIMEOUT_S, MODEL_VERSION
++ .env.example         -> MODEL_CONFIG, CHECKPOINT_PATH, DINOV3_REPO, CONFIDENCE_THRESHOLD, INFER_TIMEOUT_S, MODEL_VERSION
 + tests/test_api.py
 + tests/fixtures/window.npz   -> 1 cửa sổ 24×24 cắt từ PASTIS test split, < 1 MB
 ```
 
-Các biến env ghi đè `dinov3_repo` và `dinov3_weights` trong config. Nhờ vậy không phải sửa file YAML đang dùng trên Kaggle.
+`DINOV3_REPO` trỏ tới snapshot code DINOv3; không cần file weights DINOv3 riêng vì checkpoint đã chứa backbone. File YAML dùng trên Kaggle không phải sửa.
 
 ## Code Style
 

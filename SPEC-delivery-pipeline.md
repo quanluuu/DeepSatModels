@@ -33,8 +33,8 @@ GitHub Actions `ubuntu-latest`. Các action dùng:
 
 ```bash
 # 1 lần: tạo Release chứa weights (máy local, cần gh CLI)
-sha256sum best.pth dinov3_vits16_pretrain_lvd1689m-08c60483.pth > weights/SHA256SUMS
-gh release create weights-v1 best.pth dinov3_vits16_pretrain_lvd1689m-08c60483.pth --title "Model weights v1" --notes "TSViT_DINOv3 fold1 T9"
+sha256sum best.pth > weights/SHA256SUMS
+gh release create weights-v1 best.pth --title "Model weights v1" --notes "TSViT_DINOv3 fold1 T9"
 
 # 1 lần: secrets cho Actions
 gh secret set DOCKERHUB_USERNAME --body quanluuu

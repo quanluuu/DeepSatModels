@@ -4,7 +4,7 @@
 | --- | --- |
 | model_name | `TSViT_DINOv3` (`models/TSViT/TSViT_dinov3.py`), frozen DINOv3 ViT-S/16 per RGB frame + TSViT temporal and spatial encoders |
 | model_version | `tsvit-dinov3-fold1-t9` (env `MODEL_VERSION`); returned in every `/health` and `/predict` response |
-| checkpoint | `best_tsvit_dinov3.pth` from run T9 (30 epochs, warm start), 89 MB; holds the head and the DINOv3 backbone weights |
+| checkpoint | `best_tsvit_dinov3.pth` from run T9 (30 epochs, warm start), 89 MB; holds the head and the DINOv3 backbone weights, so no separate DINOv3 weights file is needed (the backbone is built with `pretrained=False`) |
 | trained_on | PASTIS24 fold 1: train folds 1-3, eval fold 4; one season (Sep 2018 - Nov 2019), France |
 | metrics | Test split (fold 5): mIoU 53.9%, OA 79.6%. CPU latency for one window (local, 10 threads, n=10): p50 2.3 s, p95 2.4 s; peak RAM 889 MB |
 | threshold | `CONFIDENCE_THRESHOLD` = 0.80 on the mean max-softmax of the window: at or above gives `OK`, below gives `UNCERTAIN` (taken from the course slides, not tuned on the eval split) |

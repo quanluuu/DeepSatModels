@@ -158,7 +158,10 @@ jobs:
       - name: Smoke test demo container
         run: |
           docker run -d --name demo -p 8501:8501 deepsat-demo:ci
-          curl -fsS --retry 30 --retry-connrefused --retry-delay 2 http://localhost:8501/_stcore/health || { docker logs demo; exit 1; }
+          # docker-proxy accepts and then resets connections until Streamlit listens, so retry every error, not only refused ones
+          ok=0; curl -fsS --retry 45 --retry-all-errors --retry-delay 2 http://localhost:8501/_stcore/health && ok=1
+          docker logs demo
+          test "$ok" = 1
 
       - name: Log in to Docker Hub
         if: env.PUSH == 'true'

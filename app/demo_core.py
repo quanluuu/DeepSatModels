@@ -33,16 +33,55 @@ def clip_roi(roi, shape):
     return max(0, x), max(0, y), min(W, x + w), min(H, y + h)
 
 
-def roi_from_geojson(feature, size=GRID * WIN):
-    """rectangle drawn on a Leaflet CRS.Simple map (lng = column, lat = size - row) -> (x, y, w, h) in pixels, or None"""
+def to_lonlat(geo, cols, rows):
+    """pixel corner coordinates -> (lon, lat); geo is the (2, 3) affine [lon, lat] = geo @ [col, row, 1]"""
+    return geo @ np.stack([cols, rows, np.ones_like(cols)])
+
+
+def to_pixel(geo, lon, lat):
+    """(lon, lat) -> fractional (col, row), inverse of to_lonlat"""
+    return np.linalg.solve(geo[:, :2], np.stack([np.subtract(lon, geo[0, 2]), np.subtract(lat, geo[1, 2])]))
+
+
+def outline(geo, roi):
+    """[lat, lon] corners of a pixel roi (x, y, w, h), clockwise from the top-left, for a Leaflet polygon"""
+    x, y, w, h = roi
+    lon, lat = to_lonlat(geo, np.array([x, x + w, x + w, x], float), np.array([y, y, y + h, y + h], float))
+    return np.stack([lat, lon], 1).tolist()
+
+
+def geo_bounds(geo, size=GRID * WIN):
+    """[[lat_min, lon_min], [lat_max, lon_max]] of a size x size patch"""
+    pts = np.array(outline(geo, (0, 0, size, size)))
+    return [pts.min(0).tolist(), pts.max(0).tolist()]
+
+
+def roi_from_lonlat(geo, feature, size=GRID * WIN):
+    """rectangle drawn on the map (GeoJSON lon/lat) -> pixel roi (x, y, w, h) of its bounding box, or None"""
     if not feature:
         return None
-    pts = np.asarray(feature['geometry']['coordinates'][0], dtype=float)
-    x0, x1 = np.clip([np.floor(pts[:, 0].min()), np.ceil(pts[:, 0].max())], 0, size).astype(int)
-    y0, y1 = np.clip([np.floor(size - pts[:, 1].max()), np.ceil(size - pts[:, 1].min())], 0, size).astype(int)
+    lon, lat = np.asarray(feature['geometry']['coordinates'][0], dtype=float).T
+    col, row = np.round(to_pixel(geo, lon, lat), 6)       # rounding keeps exact pixel edges from floor/ceil jitter
+    x0, x1 = np.clip([np.floor(col.min()), np.ceil(col.max())], 0, size).astype(int)
+    y0, y1 = np.clip([np.floor(row.min()), np.ceil(row.max())], 0, size).astype(int)
     if x1 <= x0 or y1 <= y0:
         return None
     return int(x0), int(y0), int(x1 - x0), int(y1 - y0)
+
+
+def warp(img, geo, roi=None, out=256):
+    """(H, W, 3) image resampled (nearest) onto the lon/lat grid of its bounding box, row 0 = north -> (out, out, 4)
+    RGBA, transparent outside the image or the roi"""
+    H, W = img.shape[:2]
+    (lat0, lon0), (lat1, lon1) = geo_bounds(geo, H)
+    t = (np.arange(out) + 0.5) / out
+    lon, lat = np.meshgrid(lon0 + t * (lon1 - lon0), lat1 - t * (lat1 - lat0))
+    col, row = np.floor(to_pixel(geo, lon.ravel(), lat.ravel())).astype(int).reshape(2, out, out)
+    x0, y0, x1, y1 = clip_roi(roi or (0, 0, W, H), img.shape)
+    rgba = np.zeros((out, out, 4), np.uint8)
+    rgba[..., :3] = img[np.clip(row, 0, H - 1), np.clip(col, 0, W - 1)]
+    rgba[..., 3] = 255 * ((col >= x0) & (col < x1) & (row >= y0) & (row < y1))
+    return rgba
 
 
 def area_table(pred, roi):
@@ -52,20 +91,6 @@ def area_table(pred, roi):
     rows = [(c, CLASS_NAMES[c], counts[c] * PIXEL_HA) for c in range(1, len(CLASS_NAMES)) if counts[c]]
     rows.sort(key=lambda r: -r[2])
     return rows, counts.sum() * PIXEL_HA, counts[0] * PIXEL_HA
-
-
-def overlay(rgb, pred, roi, alpha=0.75):
-    """class colors blended over rgb inside roi, with a white frame on the roi border"""
-    out = rgb.copy()
-    x0, y0, x1, y1 = clip_roi(roi, rgb.shape)
-    if x1 <= x0 or y1 <= y0:
-        return out
-    region = out[y0:y1, x0:x1].astype(np.float32)
-    colors = PALETTE[pred[y0:y1, x0:x1]].astype(np.float32)
-    out[y0:y1, x0:x1] = (alpha * colors + (1 - alpha) * region).astype(np.uint8)
-    out[y0, x0:x1] = out[y1 - 1, x0:x1] = 255
-    out[y0:y1, x0] = out[y0:y1, x1 - 1] = 255
-    return out
 
 
 def panels(rgb, pred, label, roi, scale=4):
@@ -114,11 +139,7 @@ if __name__ == "__main__":
     rows, total, _ = area_table(pred, (110, 110, 50, 50))
     assert abs(total - 1.0) < 1e-9 and rows[0][0] == 8
 
-    # overlay keeps the image size and only changes pixels inside the ROI (plus its 1 px frame)
     rgb = np.zeros((120, 120, 3), np.uint8)
-    out = overlay(rgb, pred, (60, 0, 10, 10))
-    assert out.shape == rgb.shape and out.dtype == np.uint8
-    assert (out[50:, :50] == 0).all() and out[5, 65].any()
 
     # clearest date: the darkest median RGB frame wins (clouds are bright)
     img = np.full((4, 10, 8, 8), 1000., np.float32)
@@ -127,14 +148,36 @@ if __name__ == "__main__":
     assert clearest_date(img) == 2
     assert to_rgb_uint8(img[0]).shape == (8, 8, 3)
 
-    # rectangle drawn on the map (Leaflet CRS.Simple: lng = column, lat = 120 - row) -> pixel roi
-    def rect(x0, y0, x1, y1):
-        return {'geometry': {'type': 'Polygon', 'coordinates': [[[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]]]}}
-    assert roi_from_geojson(rect(50, 0, 80, 30)) == (50, 90, 30, 30)
-    assert roi_from_geojson(rect(50.4, 0.2, 79.6, 29.9)) == (50, 90, 30, 30)       # snapped outward to whole pixels
-    assert roi_from_geojson(rect(-20, 100, 10, 160)) == (0, 0, 10, 20)               # clipped to the image
-    assert roi_from_geojson(rect(130, 10, 150, 20)) is None                          # entirely outside
-    assert roi_from_geojson(None) is None
+    # georeference: [lon, lat] = geo @ [col, row, 1]; north-up patch at 2 E, 48 N with 1e-4 degree pixels
+    north = np.array([[1e-4, 0, 2.0], [0, -1e-4, 48.0]])
+    turned = np.array([[0, -1e-4, 2.0], [-1e-4, 0, 48.0]])      # rotated 90 degrees: lon = 2 - row, lat = 48 - col
+    assert np.allclose(geo_bounds(north), [[48 - 120e-4, 2], [48, 2 + 120e-4]])
+    assert np.allclose(geo_bounds(turned), [[48 - 120e-4, 2 - 120e-4], [48, 2]])
+    assert np.allclose(outline(north, (10, 20, 30, 40)), [[48 - 20e-4, 2 + 10e-4], [48 - 20e-4, 2 + 40e-4],
+                                                         [48 - 60e-4, 2 + 40e-4], [48 - 60e-4, 2 + 10e-4]])
+
+    # rectangle drawn on the map (GeoJSON lon/lat) -> pixel roi of its bounding box
+    def rect(lon0, lat0, lon1, lat1):
+        return {'geometry': {'type': 'Polygon', 'coordinates': [[[lon0, lat0], [lon1, lat0], [lon1, lat1], [lon0, lat1], [lon0, lat0]]]}}
+
+    def px_rect(x0, y0, x1, y1):                    # same rectangle in pixels on the north-up patch
+        return rect(2 + x0 * 1e-4, 48 - y1 * 1e-4, 2 + x1 * 1e-4, 48 - y0 * 1e-4)
+    assert roi_from_lonlat(north, px_rect(50, 90, 80, 120)) == (50, 90, 30, 30)
+    assert roi_from_lonlat(north, px_rect(50.4, 90.1, 79.6, 119.8)) == (50, 90, 30, 30)   # snapped outward to whole pixels
+    assert roi_from_lonlat(north, px_rect(-20, -40, 10, 20)) == (0, 0, 10, 20)              # clipped to the image
+    assert roi_from_lonlat(north, px_rect(130, 10, 150, 20)) is None                        # entirely outside
+    assert roi_from_lonlat(north, None) is None
+    assert roi_from_lonlat(turned, rect(2 - 30e-4, 48 - 60e-4, 2 - 10e-4, 48 - 50e-4)) == (50, 10, 10, 20)
+
+    # warp onto the lon/lat grid of the bounding box (row 0 = north); alpha 255 only inside the roi
+    img = np.random.default_rng(0).integers(0, 255, (120, 120, 3), dtype=np.uint8)
+    out = warp(img, north, out=120)
+    assert out.shape == (120, 120, 4) and out.dtype == np.uint8
+    assert (out[..., :3] == img).all() and (out[..., 3] == 255).all()
+    out = warp(img, north, roi=(60, 0, 10, 10), out=120)
+    assert (out[:10, 60:70, 3] == 255).all() and out[..., 3].sum() == 100 * 255
+    out = warp(img, turned, out=120)
+    assert (out[0, 0, :3] == img[119, 0]).all() and (out[119, 119, :3] == img[0, 119]).all()
 
     # side-by-side panels: RGB, prediction, ground truth of the ROI, upscaled by whole pixels
     label = np.full_like(pred, 5)

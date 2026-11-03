@@ -8,12 +8,14 @@ import streamlit as st
 import folium
 from folium.plugins import Draw
 from streamlit_folium import st_folium
-from demo_core import PALETTE, area_table, clip_roi, overlay, panels, roi_from_geojson
+from demo_core import PALETTE, area_table, clip_roi, geo_bounds, outline, panels, roi_from_lonlat, warp
 
 DATA = os.environ.get('DEMO_DATA', os.path.join(os.path.dirname(__file__), 'data', 'demo_patches.npz'))
 SIZE = 120                      # stitched patch side in pixels (10 m each)
 DEFAULT_ROI = (30, 30, 60, 60)  # x, y, w, h
 MAP_HEIGHT = 560
+TILES = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+TILES_ATTR = 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community'
 MAP_HEIGHT_ANALYZED = 300   # leaves room for the three result images below the map
 PANEL_PX = 360
 
@@ -36,19 +38,26 @@ def result_table(rows, total, background):
     return '<table style="width:100%%;border-collapse:collapse;border:none;font-size:0.9rem">%s</table>' % cells
 
 
-def area_map(img, roi):
-    """Leaflet map in pixel coordinates (CRS.Simple: lng = column, lat = SIZE - row) with a rectangle tool"""
-    m = folium.Map(crs='Simple', tiles=None, zoom_control=True, attribution_control=False,
-                   min_zoom=1, max_zoom=6, max_bounds=True,      # keep panning around the image, not the lat +-90 world
-                   min_lat=-SIZE / 4, max_lat=SIZE * 5 / 4, min_lon=-SIZE / 4, max_lon=SIZE * 5 / 4)
-    folium.raster_layers.ImageOverlay(img, bounds=[[0, 0], [SIZE, SIZE]], pixelated=True).add_to(m)
-    x0, y0, x1, y1 = clip_roi(roi, img.shape)
-    folium.Rectangle([[SIZE - y1, x0], [SIZE - y0, x1]], color='white', weight=2, fill=False,
-                     tooltip=folium.Tooltip('Selected area', permanent=True, direction='center')).add_to(m)
+def area_map(geos, names, i, pred, roi):
+    """satellite basemap: every demo patch outlined (click one to select it), the selected patch's prediction
+    inside the roi when pred is given, and a rectangle tool"""
+    m = folium.Map(tiles=TILES, attr=TILES_ATTR, max_zoom=18)
+    for j, (geo, name) in enumerate(zip(geos, names)):
+        if j != i:      # fill_opacity 0 still catches clicks inside the outline
+            folium.Polygon(outline(geo, (0, 0, SIZE, SIZE)), color='white', weight=1, fill=True, fill_opacity=0,
+                           tooltip=name).add_to(m)
+    geo = geos[i]
+    folium.Polygon(outline(geo, (0, 0, SIZE, SIZE)), color='#ffd400', weight=3).add_to(m)
+    if pred is not None:
+        folium.raster_layers.ImageOverlay(warp(PALETTE[pred], geo, roi), bounds=geo_bounds(geo), opacity=0.75,
+                                          pixelated=True).add_to(m)
+    x0, y0, x1, y1 = clip_roi(roi, (SIZE, SIZE))
+    folium.Polygon(outline(geo, (x0, y0, x1 - x0, y1 - y0)), color='white', weight=2, fill=False,
+                   tooltip=folium.Tooltip('Selected area', permanent=True, direction='center')).add_to(m)
     Draw(draw_options={'rectangle': {'shapeOptions': {'color': '#ffffff', 'weight': 2, 'fillOpacity': 0.1}},
                        'polyline': False, 'polygon': False, 'circle': False, 'marker': False, 'circlemarker': False},
          edit_options={'edit': False, 'remove': False}).add_to(m)
-    m.fit_bounds([[0, 0], [SIZE, SIZE]])
+    m.fit_bounds(geo_bounds(geo))
     return m
 
 
@@ -59,15 +68,20 @@ if not os.path.isfile(DATA):
     st.error('Demo data not found: %s. Create it with app/precompute.py.' % DATA)
     st.stop()
 demo = load(DATA)
+if 'geo' not in demo:
+    st.error('Demo data has no patch locations: run app/add_geo.py on %s.' % DATA)
+    st.stop()
 names = ['Patch %d' % p for p in demo['patch_ids']]
 state = st.session_state
+if state.get('goto'):       # patch clicked on the map; the selectbox value can only change before it is drawn
+    state['region'] = state.pop('goto')
 state.setdefault('roi', DEFAULT_ROI)
 state.setdefault('map_gen', 0)      # bumped to clear rectangles drawn on the map
 
 left, right = st.columns([1, 2.1], gap='large')
 with right:
     hint, whole, region = st.columns([1.6, 1, 1.6], vertical_alignment='bottom')
-    hint.caption('Draw a rectangle with the ▭ tool on the map to select an area')
+    hint.caption('Click a white outline to change region; draw a rectangle with the ▭ tool to select an area')
     i = names.index(region.selectbox('Available region (1.2 km × 1.2 km)', names, key='region'))
     if state.get('patch') != i:      # a new image needs a new area and a new analysis
         state.update(patch=i, roi=DEFAULT_ROI, analyzed=False, map_gen=state['map_gen'] + 1)
@@ -88,11 +102,14 @@ with left:
 with right:
     roi = state['roi']
     analyzed = state.get('analyzed')
-    img = overlay(demo['rgb'][i], demo['pred'][i], roi, alpha=0.75 if analyzed else 0.0)
-    out = st_folium(area_map(img, roi), key='map-%d-%d' % (i, state['map_gen']),
-                    height=MAP_HEIGHT_ANALYZED if analyzed else MAP_HEIGHT,
-                    use_container_width=True, returned_objects=['last_active_drawing'])
-    drawn = roi_from_geojson((out or {}).get('last_active_drawing'))
+    m = area_map(demo['geo'], names, i, demo['pred'][i] if analyzed else None, roi)
+    out = st_folium(m, key='map-%d-%d' % (i, state['map_gen']), height=MAP_HEIGHT_ANALYZED if analyzed else MAP_HEIGHT,
+                    use_container_width=True, returned_objects=['last_active_drawing', 'last_object_clicked_tooltip'])
+    clicked = (out or {}).get('last_object_clicked_tooltip')
+    drawn = roi_from_lonlat(demo['geo'][i], (out or {}).get('last_active_drawing'))
+    if clicked in names and clicked != names[i]:
+        state['goto'] = clicked
+        st.rerun()
     if drawn and drawn != roi:
         state['roi'] = drawn
         st.rerun()
@@ -117,4 +134,5 @@ with left:
     st.caption('Predictions computed in advance with TSViT_DINOv3 (frozen DINOv3 ViT-S/16 encoder) on PASTIS test '
                'patches. Data: [PASTIS](https://zenodo.org/records/5012942) (Sainte Fare Garnot & Landrieu, 2021), '
                '[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); 24×24 windows stitched into 120×120 '
-               'patches, RGB composite of the clearest date, void labels shown as background.')
+               'patches, RGB composite of the clearest date, void labels shown as background. Basemap: Esri World Imagery '
+               '(recent, not the 2018-2019 season).')

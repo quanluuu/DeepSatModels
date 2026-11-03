@@ -27,7 +27,7 @@ Response 200:
   "confidence": 0.86,
   "pred": [[0, 2, ...], ...],
   "class_names": ["Background", "Meadow", "..."],
-  "area_ha": {"Soft winter wheat": 1.84, "...": 0.0},
+  "area_ha": {"Soft winter wheat": 1.84},   // chỉ các lớp có trong pred
   "model_version": "tsvit-dinov3-fold1-t9",
   "latency_ms": 2140
 }
@@ -66,7 +66,7 @@ set MODEL_CONFIG=configs/PASTIS24/TSViT_DINOv3_fold1.yaml
 set CHECKPOINT_PATH=weights/best.pth
 set DINOV3_REPO=weights/dinov3
 set DINOV3_WEIGHTS=weights/dinov3_vits16_pretrain_lvd1689m-08c60483.pth
-uvicorn api.main:app --host 0.0.0.0 --port 8000
+uvicorn --factory api.main:create_app --host 0.0.0.0 --port 8000
 
 curl http://127.0.0.1:8000/health
 curl -X POST http://127.0.0.1:8000/predict -F "file=@tests/fixtures/window.npz"

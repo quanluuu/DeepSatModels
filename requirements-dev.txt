@@ -1,3 +1,4 @@
 # lint + tests (CI and local); app deps are in requirements.txt
 pytest>=9.2
 ruff==0.17.3
+httpx>=0.28   # fastapi TestClient

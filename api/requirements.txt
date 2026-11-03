@@ -1,0 +1,4 @@
+# inference API on top of requirements_dinov3.txt (torch CPU is installed separately, see api/MODEL_CARD.md)
+fastapi>=0.162
+uvicorn>=0.54
+python-multipart>=0.0.32

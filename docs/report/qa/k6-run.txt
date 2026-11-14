@@ -1,0 +1,47 @@
+﻿
+
+  █ THRESHOLDS 
+
+    checks
+    ✓ 'rate>0.99' rate=100.00%
+
+    http_req_duration
+    ✓ 'p(95)<5000' p(95)=4.9s
+
+    http_req_failed
+    ✓ 'rate<0.01' rate=0.00%
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 327     2.618344/s
+    checks_succeeded...: 100.00% 327 out of 327
+    checks_failed......: 0.00%   0 out of 327
+
+    ✓ status is 200
+    ✓ has model_version
+    ✓ status is OK, UNCERTAIN or FALLBACK
+
+    CUSTOM
+    ai_fallback_rate...............: 0.00%  0 out of 109
+    ai_uncertain_rate..............: 0.00%  0 out of 109
+    api_latency_ms.................: avg=4614.541284 min=1197  med=4599 p(90)=4876.6 p(95)=4899.4 p(99)=4985.76 max=5903 
+
+    HTTP
+    http_req_duration..............: avg=4.62s       min=1.21s med=4.6s p(90)=4.88s  p(95)=4.9s   p(99)=4.99s   max=5.92s
+      { expected_response:true }...: avg=4.62s       min=1.21s med=4.6s p(90)=4.88s  p(95)=4.9s   p(99)=4.99s   max=5.92s
+    http_req_failed................: 0.00%  0 out of 109
+    http_reqs......................: 109    0.872781/s
+
+    EXECUTION
+    iteration_duration.............: avg=5.62s       min=2.26s med=5.6s p(90)=5.88s  p(95)=5.9s   p(99)=5.99s   max=6.97s
+    iterations.....................: 109    0.872781/s
+    vus............................: 1      min=1        max=5
+    vus_max........................: 5      min=5        max=5
+
+    NETWORK
+    data_received..................: 212 kB 1.7 kB/s
+    data_sent......................: 43 MB  341 kB/s
+
+
+

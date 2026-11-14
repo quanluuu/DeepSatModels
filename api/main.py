@@ -12,7 +12,7 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from app.demo_core import CLASS_NAMES, PIXEL_HA
 
 MAX_BYTES = 5 * 2**20       # 24x24 window, 60 dates, 10 bands as int16 is ~0.7 MB uncompressed
-MAX_DATES = 60              # model max_seq_len
+MAX_DATES = 366             # at most one date per day; the predictor keeps the first 60 (model max_seq_len), as in training
 BANDS, WIN = 10, 24
 
 

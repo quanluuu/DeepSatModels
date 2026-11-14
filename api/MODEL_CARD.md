@@ -12,7 +12,7 @@
 
 ## Input and output
 
-- Input: one `.npz` file with `img` (T, 10, 24, 24), Sentinel-2 bands in PASTIS order, raw reflectance, and `doy` (T,), day of year 1..366. T is 1..60. Max file size is 5 MB. The file is read with `allow_pickle=False`.
+- Input: one `.npz` file with `img` (T, 10, 24, 24), Sentinel-2 bands in PASTIS order, raw reflectance, and `doy` (T,), day of year 1..366. T is 1..366; only the first 60 dates are used, as in training (`CutOrPad(from_start=True)`). Max file size is 5 MB. The file is read with `allow_pickle=False`.
 - Preprocessing: `PASTIS_segmentation_transform(is_training=False)`, the same code as training: per-band fold 1 normalization, day-of-year channel, padding to 60 dates.
 - Output: `pred` 24 x 24 class ids 0..18 (`class_names` gives the names), `confidence`, `status`, `area_ha` per predicted class (1 pixel = 0.01 ha), `model_version`, `latency_ms`.
 

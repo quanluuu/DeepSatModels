@@ -111,7 +111,7 @@ def test_model_error_falls_back():
     npz_bytes(img=np.zeros((5, 10, 24, 23)), doy=np.arange(1, 6)),               # wrong window size
     npz_bytes(img=np.zeros((5, 9, 24, 24)), doy=np.arange(1, 6)),                # wrong band count
     npz_bytes(img=np.zeros((5, 10, 24, 24)), doy=np.arange(1, 5)),               # doy length != T
-    npz_bytes(**window(61)),                                                     # more than 60 dates
+    npz_bytes(**window(367)),                                                    # more dates than days in a year
     npz_bytes(img=np.zeros((0, 10, 24, 24)), doy=np.zeros(0)),                   # no dates
     npz_bytes(img=np.zeros((5, 10, 24, 24)), doy=np.array([0, 1, 2, 3, 400])),   # day of year out of range
     b'\x00' * (5 * 2**20 + 1),                                                   # larger than 5 MB
@@ -121,6 +121,13 @@ def test_bad_input_is_422_and_model_not_called(raw):
     r = post(client(stub), raw)
     assert r.status_code == 422 and r.json()['detail']
     assert stub.calls == 0
+
+
+def test_more_than_60_dates_is_accepted():
+    # 15 of 50 PASTIS fold 5 windows have 61 dates; the predictor keeps the first 60, as CutOrPad(from_start=True) did in training
+    stub = StubPredictor()
+    r = post(client(stub), npz_bytes(**window(61)))
+    assert r.status_code == 200 and stub.calls == 1
 
 
 def test_plain_npy_is_rejected():

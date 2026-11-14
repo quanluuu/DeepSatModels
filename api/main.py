@@ -4,11 +4,14 @@ Inference API for TSViT_DINOv3: one 24x24 PASTIS window (.npz with img (T, 10, 2
 Settings come from the environment, see .env.example.
 """
 import io
+import math
 import os
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 import numpy as np
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.responses import JSONResponse
 from app.demo_core import CLASS_NAMES, PIXEL_HA
 
 MAX_BYTES = 5 * 2**20       # 24x24 window, 60 dates, 10 bands as int16 is ~0.7 MB uncompressed
@@ -18,6 +21,8 @@ MAX_MEMBER_BYTES = MAX_DATES * BANDS * WIN * WIN * 8    # largest valid array (f
 IMG_RANGE = (-5000, 25000)  # 300 PASTIS fold 5 windows hold -3186..19080 besides the nodata value
 NODATA = -10000             # PASTIS no-data reflectance, present in 88 of those 300 windows
 MAX_SAME_DOY = 2            # real windows hold up to two acquisitions on the same day
+MAX_BODY = MAX_BYTES + 2**16    # file plus multipart headers; a bigger Content-Length is refused before the body is read
+MAX_PENDING = 5             # inferences submitted and not finished (1 running + 4 waiting); more gets 503 instead of a timeout
 
 
 def status_of(confidence, threshold):
@@ -78,7 +83,21 @@ def create_app(predictor=None, threshold=None, timeout_s=None):
     threshold = float(os.environ.get('CONFIDENCE_THRESHOLD', 0.80)) if threshold is None else threshold
     timeout_s = float(os.environ.get('INFER_TIMEOUT_S', 10)) if timeout_s is None else timeout_s
     pool = ThreadPoolExecutor(max_workers=1)    # one inference at a time; a timed-out running one still finishes in the background
+    lock, pending = threading.Lock(), 0
     app = FastAPI(title='DeepSatModels inference API')
+
+    def release(_future):
+        nonlocal pending
+        with lock:
+            pending -= 1
+
+    @app.middleware('http')
+    async def refuse_large_body(request: Request, call_next):
+        # shortcut: a chunked upload has no Content-Length and is still spooled to disk; a reverse proxy body limit closes that
+        size = request.headers.get('content-length', '')
+        if size.isdigit() and int(size) > MAX_BODY:
+            return JSONResponse({'detail': 'request larger than %d MB' % (MAX_BYTES // 2**20)}, status_code=413)
+        return await call_next(request)
 
     @app.get('/health')
     def health():
@@ -91,8 +110,14 @@ def create_app(predictor=None, threshold=None, timeout_s=None):
             img, doy = read_window(file.file.read(MAX_BYTES + 1))
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e))
+        nonlocal pending
+        with lock:
+            if pending >= MAX_PENDING:
+                raise HTTPException(status_code=503, detail='server busy, retry later', headers={'Retry-After': str(math.ceil(timeout_s))})
+            pending += 1
         out = {'model_version': predictor.model_version, 'class_names': CLASS_NAMES}
         future = pool.submit(predictor.predict, img, doy)
+        future.add_done_callback(release)     # runs on finish, failure or cancel, so the count never leaks
         try:
             pred, confidence = future.result(timeout=timeout_s)
         except Exception as e:      # timeout or model failure: the caller falls back to manual work, the service stays up

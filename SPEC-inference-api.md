@@ -108,7 +108,7 @@ def status_of(confidence, threshold):
 | AC-AI-04 | Integration (stub) | stub ngủ quá `INFER_TIMEOUT_S` hoặc raise | 200, `status=FALLBACK`, `pred=null` |
 | AC-AI-05 | Negative | file `.exe` đổi tên `.npz` | 422, stub không bị gọi |
 | AC-AI-06 | Negative (security) | `.npz` chứa object array | 422 |
-| AC-AI-07 | Boundary | `T=61`, shape sai, file 6 MB | 422 |
+| AC-AI-07 | Boundary | `T=367`, shape sai, file 6 MB | 422 (`T=61` được nhận: predictor giữ 60 ngày đầu như lúc train, sửa ngày 2026-11-14) |
 | AC-AI-08 | System (model thật) | `tests/fixtures/window.npz` | Như acceptance criterion 2. Chạy trong container ở module `containers` |
 
 Test AC-AI-01..07 dùng stub và chạy được ở mọi máy. AC-AI-08 cần weights.

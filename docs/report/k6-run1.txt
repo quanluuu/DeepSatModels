@@ -1,0 +1,48 @@
+
+
+  █ THRESHOLDS 
+
+    checks
+    ✓ 'rate>0.99' rate=100.00%
+
+    http_req_duration
+    ✗ 'p(95)<5000' p(95)=10.07s
+
+    http_req_failed
+    ✓ 'rate<0.01' rate=0.00%
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 171     1.328567/s
+    checks_succeeded...: 100.00% 171 out of 171
+    checks_failed......: 0.00%   0 out of 171
+
+    ✓ status is 200
+    ✓ has model_version
+    ✓ status is OK, UNCERTAIN or FALLBACK
+
+    CUSTOM
+    ai_fallback_rate...............: 94.73% 54 out of 57
+    ai_uncertain_rate..............: 0.00%  0 out of 57
+    api_latency_ms.................: avg=9834.45614 min=3129  med=10026  p(90)=10036  p(95)=10042.8 p(99)=10058.64 max=10062 
+
+    HTTP
+    http_req_duration..............: avg=9.85s      min=3.2s  med=10.03s p(90)=10.05s p(95)=10.07s  p(99)=10.16s   max=10.17s
+      { expected_response:true }...: avg=9.85s      min=3.2s  med=10.03s p(90)=10.05s p(95)=10.07s  p(99)=10.16s   max=10.17s
+    http_req_failed................: 0.00%  0 out of 57
+    http_reqs......................: 57     0.442856/s
+
+    EXECUTION
+    iteration_duration.............: avg=10.86s     min=4.26s med=11.04s p(90)=11.05s p(95)=11.08s  p(99)=11.21s   max=11.22s
+    iterations.....................: 57     0.442856/s
+    vus............................: 1      min=1        max=5
+    vus_max........................: 5      min=5        max=5
+
+    NETWORK
+    data_received..................: 41 kB  314 B/s
+    data_sent......................: 22 MB  173 kB/s
+
+
+
+time="2026-11-04T00:19:47+07:00" level=error msg="thresholds on metrics 'http_req_duration' have been crossed"

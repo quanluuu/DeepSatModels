@@ -7,10 +7,13 @@ models/saved_models/
 __pycache__/
 ignore/
 tasks/
-docs/
+docs/*
+!docs/report/
 # local API settings (template: .env.example)
 .env
 
 # model weights come from the GitHub Release weights-v1; only the checksum is committed
 weights/*
 !weights/SHA256SUMS
+# labelled eval windows cut from PASTIS by scripts/make_fixture.py --eval (TC-06..08), regenerated locally
+tests/fixtures/eval_windows.npz

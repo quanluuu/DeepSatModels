@@ -17,7 +17,7 @@ Người dùng: sinh viên chạy test, giảng viên đọc kết quả trong P
 | TC-03 | Mock | API | stub ngủ lâu hơn `timeout_s` | 200, `status=FALLBACK`, `pred=null`; request kế tiếp vẫn được phục vụ | `tests/test_api.py` (có sẵn) |
 | TC-04 | Mock | API | stub ném `RuntimeError` | 200, `status=FALLBACK`, không 500 | `tests/test_api.py` (có sẵn) |
 | TC-05 | Mock | API | shape sai, `doy` ngoài 1..366, dtype sai, file không phải npz | 422, `stub.calls == 0` | `tests/test_api.py` (có sẵn) |
-| TC-06 | AI | API, model thật | 50 cửa sổ fold 5 kèm nhãn | Trên confusion matrix gộp (bỏ nhãn void 19): OA ≥ 74.6%, mIoU ≥ 48.9% | `tests/test_ai_model.py` (mới) |
+| TC-06 | AI | API, model thật | 300 cửa sổ fold 5 kèm nhãn | Trên confusion matrix gộp (bỏ nhãn void 19): OA ≥ 74.6%, mIoU ≥ 48.9% | `tests/test_ai_model.py` (mới) |
 | TC-07 | AI | API, model thật | `tests/fixtures/window.npz` gửi 2 lần | `pred` giống hệt, `confidence` bằng nhau (API làm tròn 4 chữ số) | `tests/test_ai_model.py` (mới) |
 | TC-08 | AI | API, model thật | 10 cửa sổ, nhân `img` với hệ số đều trong [0.99, 1.01], seed 0 | Trung bình tỉ lệ pixel giữ nguyên lớp ≥ 95% | `tests/test_ai_model.py` (mới) |
 | TC-09 | Automation | System | image `deepsat-api:ci` chạy bằng `docker run` | `scripts/smoke_api.py` exit 0: `/health` ok, `/predict` 200, `pred` 24x24 với giá trị 0..18, file rác bị 422 | job `docker` trong `.github/workflows/ci.yml` (có sẵn) |
@@ -44,8 +44,8 @@ Thêm các điều kiện sau:
 git clone https://github.com/facebookresearch/dinov3 weights/dinov3
 git -C weights/dinov3 checkout 6876159
 
-# một lần: cắt 50 cửa sổ có nhãn từ fold 5 (file không commit, nằm trong .gitignore)
-.venv/Scripts/python -I scripts/make_fixture.py --zip pastis24.zip --eval 50 --out tests/fixtures/eval_windows.npz
+# một lần: cắt 300 cửa sổ có nhãn từ fold 5 (khoảng 130 MB, không commit, nằm trong .gitignore)
+.venv/Scripts/python -I scripts/make_fixture.py --zip pastis24.zip --eval 300 --out tests/fixtures/eval_windows.npz
 
 # TC-01..05 (mock, chạy cả trên CI)
 .venv/Scripts/python -m pytest -q tests/test_api.py --junitxml docs/report/qa/junit-mock.xml

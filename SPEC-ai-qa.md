@@ -27,7 +27,7 @@ Module id cố định, không đổi tên giữa chừng.
 | Tấn công đối kháng (FGSM/PGD) | Có, chạy local với model thật trên CPU. CI không chạy |
 | PDF | File mới riêng, xuất bằng Chrome headless như `report-pdf` |
 | Người đọc PDF | Giảng viên, tiếng Việt |
-| TC-06: dữ liệu và ngưỡng | 50 cửa sổ fold 5. Ngưỡng = model card trừ 5 điểm: OA ≥ 74.6%, mIoU ≥ 48.9% |
+| TC-06: dữ liệu và ngưỡng | 300 cửa sổ fold 5 (ban đầu 50; đổi ngày 2026-11-14 vì với 50 cửa sổ, bootstrap 95% của OA là 65.0..78.4% và có lớp chỉ 1 pixel nhãn). Ngưỡng = model card trừ 5 điểm: OA ≥ 74.6%, mIoU ≥ 48.9% |
 | ATK-09: khi quá tải | 503 kèm `Retry-After` khi đã có hơn 4 request chờ |
 | ATK-03, ATK-10: input sai miền giá trị | Chặn ở `read_window`, trả 422 (reflectance ngoài miền, `doy` không tăng dần) |
 

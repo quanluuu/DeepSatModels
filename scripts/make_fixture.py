@@ -2,6 +2,8 @@
 Cut one PASTIS24 test window into the .npz the inference API takes (img (T, 10, 24, 24), doy (T,)).
 The window comes from a patch in app/data/demo_patches.npz, so the API prediction can be checked against the demo.
     python -I scripts/make_fixture.py --zip pastis24.zip --out tests/fixtures/window.npz
+With --eval N it instead cuts N labelled windows spread evenly over the test split (img_i, doy_i, label_i), for TC-06..08:
+    python -I scripts/make_fixture.py --zip pastis24.zip --eval 50 --out tests/fixtures/eval_windows.npz
 """
 import argparse
 import os
@@ -18,7 +20,21 @@ def main(argv=None):
     parser.add_argument('--zip', required=True, help='PASTIS24 zip (PASTIS24_25parts/...)')
     parser.add_argument('--demo', default='app/data/demo_patches.npz')
     parser.add_argument('--out', default='tests/fixtures/window.npz')
+    parser.add_argument('--eval', type=int, metavar='N', help='cut N labelled windows instead of the single demo window')
     args = parser.parse_args(argv)
+    os.makedirs(os.path.dirname(args.out) or '.', exist_ok=True)
+
+    if args.eval:
+        with zipfile.ZipFile(args.zip) as z:
+            paths = z.read(ROOT + 'fold-paths/fold_5_paths.csv').decode().split()
+            arrays = {}
+            for i in range(args.eval):
+                s = pickle.load(z.open(ROOT + paths[i * len(paths) // args.eval]), encoding='latin1')    # trusted local dataset
+                arrays.update({'img_%d' % i: s['img'].astype(np.int16), 'doy_%d' % i: s['doy'].astype(np.int16),
+                               'label_%d' % i: s['labels'][0].astype(np.uint8)})     # labels[0] = semantic class, as in training
+        np.savez_compressed(args.out, **arrays)
+        print('%d windows -> %s, %.0f KB' % (args.eval, args.out, os.path.getsize(args.out) / 1024))
+        return
 
     with np.load(args.demo) as d:
         demo_ids = set(d['patch_ids'].tolist())
@@ -29,7 +45,6 @@ def main(argv=None):
         sample = pickle.load(z.open(ROOT + path), encoding='latin1')    # trusted local dataset, never user uploads
 
     img, doy = sample['img'].astype(np.int16), sample['doy'].astype(np.int16)
-    os.makedirs(os.path.dirname(args.out) or '.', exist_ok=True)
     np.savez_compressed(args.out, img=img, doy=doy)
     print('%s -> %s: img %s, doy %s, %.0f KB' % (path, args.out, img.shape, doy.shape, os.path.getsize(args.out) / 1024))
 

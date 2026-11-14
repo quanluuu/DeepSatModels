@@ -47,11 +47,13 @@ def post(c, raw, name='window.npz'):
 
 
 # AC-AI-01: threshold branches (white-box)
+# TC-02
 @pytest.mark.parametrize('confidence, status', [(0.95, 'OK'), (0.80, 'OK'), (0.79, 'UNCERTAIN'), (0.20, 'UNCERTAIN')])
 def test_status_of(confidence, status):
     assert status_of(confidence, 0.80) == status
 
 
+# TC-01
 def test_health_reports_model_version():
     r = client(StubPredictor()).get('/health')
     assert r.status_code == 200
@@ -83,12 +85,14 @@ def test_threshold_is_configurable():
 
 
 # AC-AI-04
+# TC-03
 def test_timeout_falls_back():
     body = post(client(StubPredictor(sleep=0.5), timeout_s=0.05), npz_bytes(**window())).json()
     assert body['status'] == 'FALLBACK' and body['pred'] is None and body['message']
     assert body['model_version'] == 'stub-v0'
 
 
+# TC-03
 def test_timed_out_request_still_queued_is_not_run():
     stub = StubPredictor(sleep=0.3)
     c = client(stub, timeout_s=0.1)
@@ -98,12 +102,14 @@ def test_timed_out_request_still_queued_is_not_run():
     assert body['status'] == 'FALLBACK' and stub.calls == 1
 
 
+# TC-04
 def test_model_error_falls_back():
     body = post(client(StubPredictor(error=RuntimeError('boom'))), npz_bytes(**window())).json()
     assert body['status'] == 'FALLBACK' and body['pred'] is None
 
 
 # AC-AI-05..07: bad input is rejected with 422 before the model is called
+# TC-05
 @pytest.mark.parametrize('raw', [
     b'MZ\x90\x00 not a zip',                                                     # .exe renamed to .npz
     npz_bytes(img=np.array([{'a': 1}], dtype=object), doy=np.arange(1)),        # object array (pickle)
@@ -130,6 +136,7 @@ def test_more_than_60_dates_is_accepted():
     assert r.status_code == 200 and stub.calls == 1
 
 
+# TC-05
 def test_plain_npy_is_rejected():
     buf = io.BytesIO()
     np.save(buf, np.zeros((5, 10, 24, 24)))

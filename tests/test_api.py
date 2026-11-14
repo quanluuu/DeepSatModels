@@ -39,7 +39,8 @@ def npz_bytes(**arrays):
 
 
 def window(T=5):
-    return dict(img=np.zeros((T, 10, 24, 24), np.int16), doy=np.arange(1, T + 1))
+    # non-constant, in-range reflectance: a constant window is rejected as no data (ATK-03)
+    return dict(img=np.random.default_rng(0).integers(0, 3000, (T, 10, 24, 24)).astype(np.int16), doy=np.arange(1, T + 1))
 
 
 def post(c, raw, name='window.npz'):

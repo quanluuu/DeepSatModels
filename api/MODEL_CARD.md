@@ -13,6 +13,7 @@
 ## Input and output
 
 - Input: one `.npz` file with `img` (T, 10, 24, 24), Sentinel-2 bands in PASTIS order, raw reflectance, and `doy` (T,), day of year 1..366. T is 1..366; only the first 60 dates are used, as in training (`CutOrPad(from_start=True)`). Max file size is 5 MB. The file is read with `allow_pickle=False`.
+- Input rules (422 otherwise, the model is never called): each array in the archive at most 366 x 10 x 24 x 24 float64 by its declared size, checked before decompressing; `img` finite, every value in -5000..25000 or -10000 (PASTIS no data), not constant; `doy` in date order with a day repeated at most twice. The ranges come from 300 PASTIS fold 5 windows (-3186..19080 besides -10000, days repeated up to twice). Before these rules, all-32767, all-0 and all-negative windows got `OK` at confidence 0.99 and one NaN in an RGB band gave HTTP 500.
 - Preprocessing: `PASTIS_segmentation_transform(is_training=False)`, the same code as training: per-band fold 1 normalization, day-of-year channel, padding to 60 dates.
 - Output: `pred` 24 x 24 class ids 0..18 (`class_names` gives the names), `confidence`, `status`, `area_ha` per predicted class (1 pixel = 0.01 ha), `model_version`, `latency_ms`.
 

@@ -14,6 +14,10 @@ from app.demo_core import CLASS_NAMES, PIXEL_HA
 MAX_BYTES = 5 * 2**20       # 24x24 window, 60 dates, 10 bands as int16 is ~0.7 MB uncompressed
 MAX_DATES = 366             # at most one date per day; the predictor keeps the first 60 (model max_seq_len), as in training
 BANDS, WIN = 10, 24
+MAX_MEMBER_BYTES = MAX_DATES * BANDS * WIN * WIN * 8    # largest valid array (float64); a bigger member is a decompression bomb
+IMG_RANGE = (-5000, 25000)  # 300 PASTIS fold 5 windows hold -3186..19080 besides the nodata value
+NODATA = -10000             # PASTIS no-data reflectance, present in 88 of those 300 windows
+MAX_SAME_DOY = 2            # real windows hold up to two acquisitions on the same day
 
 
 def status_of(confidence, threshold):
@@ -32,6 +36,8 @@ def read_window(raw):
     if not isinstance(d, np.lib.npyio.NpzFile):
         raise ValueError('expected a .npz archive with arrays img and doy')
     with d:
+        if any(m.file_size > MAX_MEMBER_BYTES for m in d.zip.infolist()):   # sizes from the zip directory: checked before inflating
+            raise ValueError('array too large for one window')
         missing = {'img', 'doy'} - set(d.files)
         if missing:
             raise ValueError('missing array(s): %s' % ', '.join(sorted(missing)))
@@ -50,6 +56,16 @@ def read_window(raw):
         raise ValueError('doy must have shape (%d,), got %s' % (T, doy.shape))
     if doy.min() < 1 or doy.max() > 366:
         raise ValueError('doy values must be in 1..366')
+    if (np.diff(doy) < 0).any():
+        raise ValueError('doy must be in date order')
+    if np.bincount(doy).max() > MAX_SAME_DOY:
+        raise ValueError('a day of year appears more than %d times' % MAX_SAME_DOY)
+    if not np.isfinite(img).all():
+        raise ValueError('img contains NaN or Inf')
+    if not ((img == NODATA) | ((img >= IMG_RANGE[0]) & (img <= IMG_RANGE[1]))).all():
+        raise ValueError('img values must be in %d..%d, or %d for no data' % (*IMG_RANGE, NODATA))
+    if img.min() == img.max():
+        raise ValueError('img is constant: no data in this window')
     return img, doy
 
 

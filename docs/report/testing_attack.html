@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Kiểm thử và tấn công DeepSatModels</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  :root { --ink: #1b1f24; --muted: #5a6370; --line: #d5dae1; --code-bg: #f4f6f8; --accent: #1f5fa8; --ok: #1a7f37; --bad: #b42318; --warn: #9a6700; }
+  body { background: #fff; color: var(--ink); font: 10.5pt/1.5 "Segoe UI", Arial, sans-serif; margin: 0; }
+  h1 { font-size: 22pt; margin: 0 0 4mm; }
+  h2 { font-size: 15pt; color: var(--accent); border-bottom: 1.5px solid var(--accent); padding-bottom: 1mm; margin: 0 0 3mm; }
+  h3 { font-size: 11.5pt; margin: 5mm 0 1.5mm; break-after: avoid; }
+  section { break-before: page; }
+  p, li { margin: 1mm 0; }
+  code { font: 9pt Consolas, monospace; background: var(--code-bg); padding: 0 2px; border-radius: 2px; }
+  pre { font: 8.6pt/1.4 Consolas, monospace; background: var(--code-bg); border: 1px solid var(--line); border-radius: 3px;
+        padding: 2.5mm 3mm; white-space: pre-wrap; word-break: break-word; margin: 1mm 0 2mm; break-inside: avoid; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 2mm 0 3mm; font-size: 9.5pt; break-inside: avoid; }
+  th, td { border: 1px solid var(--line); padding: 1.2mm 2mm; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td code { overflow-wrap: anywhere; }
+  table.tc { table-layout: fixed; font-size: 8.6pt; }
+  .step { border-left: 3px solid var(--accent); padding: 1mm 0 1mm 3mm; margin: 3mm 0; break-inside: avoid; }
+  .step .k { display: inline-block; min-width: 26mm; color: var(--muted); font-weight: 600; }
+  .step h3 { margin-top: 0; }
+  .ok { color: var(--ok); font-weight: 600; } .bad { color: var(--bad); font-weight: 600; } .warn { color: var(--warn); font-weight: 600; }
+  .note { color: var(--muted); font-size: 9.5pt; }
+  figure { margin: 3mm 0; break-inside: avoid; }
+  figure img { max-width: 100%; border: 1px solid var(--line); }
+  figcaption { color: var(--muted); font-size: 9pt; margin-top: 1mm; }
+  .cover { display: flex; flex-direction: column; justify-content: center; min-height: 240mm; }
+  .cover .sub { font-size: 13pt; color: var(--muted); }
+  .toc ol { padding-left: 6mm; } .toc li { margin: 1.2mm 0; }
+  pre.diagram { font: 7.8pt/1.35 Consolas, monospace; white-space: pre; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>Kiểm thử và tấn công hệ thống AI DeepSatModels</h1>
+  <p class="sub">20 test case trên API suy luận <code>TSViT_DINOv3</code> và Docker image: 10 test case kiểm thử (mock, AI, automation) và 10 test case tấn công, kèm kết quả trước và sau khi sửa lỗ hổng</p>
+  <table style="width:auto;margin-top:8mm">
+    <tr><th>Sinh viên</th><td>Lưu Minh Quân</td></tr>
+    <tr><th>Mã sinh viên</th><td>2351260684</td></tr>
+    <tr><th>Lớp</th><td>65TTNT</td></tr>
+    <tr><th>Repository</th><td>https://github.com/quanluuu/DeepSatModels (nhánh <code>report</code>)</td></tr>
+    <tr><th>Code được kiểm thử</th><td>commit <code>c03ba8c</code>, model <code>tsvit-dinov3-fold1-t9</code>, image <code>quanluuu/deepsat-api</code></td></tr>
+    <tr><th>Ngày</th><td>15/11/2026</td></tr>
+  </table>
+</div>
+
+<section class="toc">
+  <h2>Mục lục</h2>
+  <ol>
+    <li>Hệ thống được kiểm thử</li>
+    <li>Môi trường</li>
+    <li>Chiến lược kiểm thử</li>
+    <li>10 test case kiểm thử (TC-01..10)
+      <ol><li>Bảng tổng hợp</li><li>Chi tiết từng test case</li></ol></li>
+    <li>10 test case tấn công (ATK-01..10)
+      <ol><li>Bảng tổng hợp: trước và sau khi sửa</li><li>Chi tiết từng tấn công</li></ol></li>
+    <li>Hồi quy sau khi sửa</li>
+    <li>Rủi ro còn lại</li>
+    <li>Kết luận</li>
+    <li>Phụ lục: số liệu và file nguồn, danh sách commit</li>
+  </ol>
+  <p class="note">Mọi con số trong tài liệu là số đo thật từ các lần chạy ngày 14/11/2026 và 15/11/2026. File bằng chứng nằm trong <code>docs/report/qa/</code> của repository. Phụ lục ghi nguồn của từng con số.</p>
+</section>
+
+<section>
+  <h2>1. Hệ thống được kiểm thử</h2>
+  <p>Hệ thống là một API suy luận phân loại cây trồng từ ảnh vệ tinh Sentinel-2. Model <code>TSViT_DINOv3</code> nhận một cửa sổ 24×24 pixel (240 m × 240 m) theo chuỗi thời gian. Model trả về bản đồ lớp cây trồng cho từng pixel.</p>
+  <table>
+    <tr><th style="width:28%">Thành phần</th><th>Mô tả</th></tr>
+    <tr><td><code>GET /health</code></td><td>Trả <code>status</code>, <code>model_version</code>, <code>device</code></td></tr>
+    <tr><td><code>POST /predict</code></td><td>Nhận một file <code>.npz</code> gồm <code>img</code> (T, 10, 24, 24): 10 band Sentinel-2, reflectance thô; và <code>doy</code> (T,): ngày trong năm. Trả <code>pred</code> 24×24 (lớp 0..18), <code>confidence</code>, <code>status</code>, <code>area_ha</code>, <code>model_version</code>, <code>latency_ms</code></td></tr>
+    <tr><td><code>status</code></td><td><code>OK</code> khi confidence ≥ 0.80; <code>UNCERTAIN</code> khi thấp hơn, người dùng phải xem lại bản đồ; <code>FALLBACK</code> khi model treo quá 10 s hoặc lỗi, <code>pred = null</code></td></tr>
+    <tr><td>Model</td><td><code>TSViT_DINOv3</code>: backbone DINOv3 ViT-S/16 đóng băng cho 3 band RGB của từng ngày, cộng encoder thời gian và không gian của TSViT. Test split (fold 5): OA 79.6%, mIoU 53.9% (model card)</td></tr>
+    <tr><td>Đóng gói</td><td>Docker image <code>quanluuu/deepsat-api</code>, chạy CPU, build và smoke test trong GitHub Actions</td></tr>
+  </table>
+
+  <h3>Luồng xử lý một request /predict</h3>
+<pre class="diagram">client ── POST /predict (.npz) ──▶ middleware: Content-Length &gt; 5 MB + 64 KB ? ──── có ──▶ 413
+                                        │ không
+                                        ▼
+                        read_window: zip, shape, dtype, miền giá trị, doy ? ─ sai ──▶ 422
+                                        │ đúng
+                                        ▼
+                        hàng đợi: đã có 5 suy luận chưa xong ? ───────────── có ──▶ 503 + Retry-After
+                                        │ không
+                                        ▼
+                        model TSViT_DINOv3 (1 luồng, timeout 10 s) ── treo/lỗi ──▶ 200, status FALLBACK
+                                        │
+                                        ▼
+                        200: pred 24×24, confidence, status OK / UNCERTAIN, area_ha</pre>
+  <p class="note">Bước 413, bước 503 và các luật miền giá trị trong <code>read_window</code> được thêm sau khi chạy test tấn công (mục 5). Trước đó, request chỉ bị kiểm kích thước file, shape, dtype và khoảng 1..366 của <code>doy</code>.</p>
+
+  <h3>Phạm vi</h3>
+  <ul>
+    <li><b>Trong phạm vi:</b> API (<code>api/main.py</code>, <code>api/predictor.py</code>), model thật và Docker image API.</li>
+    <li><b>Ngoài phạm vi:</b> app demo Streamlit; quá trình huấn luyện model; hạ tầng triển khai (reverse proxy, xác thực). Hai mục sau được ghi ở phần Rủi ro còn lại.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>2. Môi trường</h2>
+  <table>
+    <tr><th style="width:24%">Mục</th><th>Giá trị</th></tr>
+    <tr><td>Máy local</td><td>Windows 11, Intel Core i7-1355U, RAM 16 GB, chỉ CPU</td></tr>
+    <tr><td>Python local</td><td>3.13.3; torch 2.11.0; numpy 2.5.2; FastAPI 0.162.0; pytest</td></tr>
+    <tr><td>CI</td><td>GitHub Actions <code>ubuntu-latest</code>. Job <code>test-api</code> dùng Python 3.11, cùng bản với image API. Job <code>docker</code> build image và smoke test</td></tr>
+    <tr><td>Load test</td><td>k6 v2.3.0</td></tr>
+    <tr><td>Model</td><td>Checkpoint <code>best.pth</code> (GitHub Release <code>weights-v1</code>, kiểm SHA-256); code DINOv3 commit <code>6876159</code></td></tr>
+    <tr><td>Dữ liệu</td><td>PASTIS24 fold 5, là test split của fold 1. 300 cửa sổ có nhãn, chia đều trên fold, lưu ở <code>tests/fixtures/eval_windows.npz</code> (không commit). Một cửa sổ mẫu <code>tests/fixtures/window.npz</code> (có commit)</td></tr>
+  </table>
+
+  <h3>Nhóm test chạy ở đâu</h3>
+  <table>
+    <tr><th style="width:24%">Nhóm</th><th style="width:22%">Chạy ở</th><th>Lý do</th></tr>
+    <tr><td>TC-01..05, ATK-03..10</td><td>CI, mỗi lần push và PR</td><td>Dùng <code>StubPredictor</code> thay model. Không cần torch, weights hay dữ liệu</td></tr>
+    <tr><td>TC-06..08, ATK-01..02</td><td>Local</td><td>Cần weights, code DINOv3 và dữ liệu PASTIS. Chạy CPU mất 4 đến 8 phút mỗi file</td></tr>
+    <tr><td>TC-09</td><td>CI, job <code>docker</code></td><td>Máy local không cài Docker</td></tr>
+    <tr><td>TC-10</td><td>Local: uvicorn và k6</td><td>Đo tải với model thật trên CPU</td></tr>
+  </table>
+
+  <h3>Chuẩn bị (chạy ở thư mục gốc repo)</h3>
+<pre># cửa sổ dữ liệu cho TC-06..08 và ATK-01..02 (cần pastis24.zip ở thư mục gốc)
+.venv/Scripts/python -I scripts/make_fixture.py --zip pastis24.zip --eval 300 --out tests/fixtures/eval_windows.npz
+
+# model: weights/best.pth và code DINOv3 tại weights/dinov3 (giống bước build image trong CI)
+git init -q weights/dinov3
+git -C weights/dinov3 fetch -q --depth 1 https://github.com/facebookresearch/dinov3.git 6876159a11b4df116f30f667f8c9888617df0751
+git -C weights/dinov3 checkout -q FETCH_HEAD</pre>
+  <p class="note">Thiếu weights hoặc dữ liệu thì TC-06..08 và ATK-01..02 tự skip, kèm lý do. Các test còn lại vẫn chạy.</p>
+</section>
+
+<section>
+  <h2>3. Chiến lược kiểm thử</h2>
+  <h3>Phân loại 10 test case kiểm thử</h3>
+  <table>
+    <tr><th style="width:18%">Loại \ Tầng</th><th>API</th><th>System</th></tr>
+    <tr><td><b>Mock</b></td><td>TC-01..05: thay model bằng <code>StubPredictor</code>. Kiểm logic API: ngưỡng, timeout, lỗi model, validate input</td><td>—</td></tr>
+    <tr><td><b>AI</b></td><td>TC-06..08: model thật qua API (<code>TestClient</code>). Kiểm độ chính xác, tính tất định, độ ổn định với nhiễu</td><td>—</td></tr>
+    <tr><td><b>Automation</b></td><td>TC-01..05 chạy tự động trên CI ở mỗi push</td><td>TC-09: image Docker thật trong CI. TC-10: k6 bắn tải vào API thật</td></tr>
+  </table>
+  <ul>
+    <li><b>Mock test</b> chạy nhanh (dưới 10 s), tất định và không cần GPU hay weights. Vì vậy nó chạy trên CI ở mỗi push.</li>
+    <li><b>AI test</b> đo chất lượng model, việc mock không làm được. TC-08 là test metamorphic: không cần nhãn, chỉ cần quan hệ "nhiễu nhỏ thì dự đoán gần như không đổi".</li>
+    <li><b>Automation test</b> chạy cả hệ thống như người dùng thật: build image, gọi HTTP, đo tải.</li>
+  </ul>
+
+  <h3>Ngưỡng đặt trước khi đo</h3>
+  <table>
+    <tr><th style="width:14%">Test</th><th style="width:40%">Ngưỡng</th><th>Cơ sở</th></tr>
+    <tr><td>TC-06</td><td>OA ≥ 74.6% và mIoU ≥ 48.9%</td><td>Model card (OA 79.6%, mIoU 53.9%) trừ 5 điểm. Dùng 300 cửa sổ: với 50 cửa sổ, khoảng tin cậy bootstrap 95% của OA là 65.0..78.4%, quá rộng</td></tr>
+    <tr><td>TC-08</td><td>Trung bình ≥ 95% pixel giữ lớp khi nhân reflectance với hệ số ngẫu nhiên 0.99..1.01</td><td>Thay đổi reflectance 1% không nên làm đổi lớp cây trồng của một pixel. Giá trị no-data −10000 giữ nguyên</td></tr>
+    <tr><td>TC-10</td><td>p95 &lt; 5 s, tỉ lệ lỗi &lt; 1%, <code>checks</code> &gt; 99%</td><td>Một cửa sổ trên CPU, 5 người dùng đồng thời</td></tr>
+    <tr><td>ATK-01, 02</td><td>An toàn nếu accuracy giảm ≤ 10 điểm, hoặc ≥ 80% cửa sổ bị đánh dấu <code>UNCERTAIN</code></td><td>Tấn công L∞ với ε = 0.03 × độ lệch chuẩn của mỗi band</td></tr>
+    <tr><td>ATK-05</td><td>Bộ nhớ cấp phát đỉnh &lt; 50 MB khi nhận file bomb</td><td>Đo bằng <code>tracemalloc</code></td></tr>
+    <tr><td>ATK-09</td><td><code>/health</code> trả lời &lt; 1 s khi bị flood; request thừa nhận 503</td><td>Service phải còn sống khi quá tải</td></tr>
+  </table>
+
+  <h3>Quy trình cho test tấn công</h3>
+  <ol>
+    <li>Viết test tấn công với kỳ vọng an toàn, chạy trên code chưa sửa. Lưu kết quả "trước": <code>junit-attack-before.xml</code>.</li>
+    <li>Sửa lỗ hổng ở chỗ hẹp nhất (<code>read_window</code>, <code>create_app</code>). Không thêm thư viện.</li>
+    <li>Chạy lại test tấn công. Lưu kết quả "sau": <code>junit-attack-after.xml</code>.</li>
+    <li>Chạy lại TC-01..10 để chắc bản sửa không làm hỏng chức năng (mục 6).</li>
+  </ol>
+  <p>Mọi payload tấn công chỉ chạy vào API local hoặc <code>TestClient</code>. Không có tấn công nào nhắm vào hệ thống bên ngoài.</p>
+</section>
+
+<!-- P2: section 4 -->
+
+<!-- P3: section 5 -->
+
+<!-- P4: sections 6-9 -->
+
+</body>
+</html>

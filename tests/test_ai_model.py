@@ -6,7 +6,7 @@ import os
 import numpy as np
 import pytest
 from fastapi.testclient import TestClient
-from api.main import create_app
+from api.main import NODATA, create_app
 
 FIXTURE = 'tests/fixtures/window.npz'
 EVAL = 'tests/fixtures/eval_windows.npz'
@@ -69,7 +69,8 @@ def test_small_noise_keeps_prediction(api, windows, preds, record_property):
     rng = np.random.default_rng(0)
     agree = []
     for (img, doy, _), (base, _) in zip(windows[:10], preds[:10]):
-        noisy = (img * rng.uniform(0.99, 1.01, img.shape)).astype(np.float32)    # +-1% reflectance per value
+        noise = np.where(img == NODATA, 1, rng.uniform(0.99, 1.01, img.shape))     # +-1% reflectance; the no-data flag stays exact
+        noisy = (img * noise).astype(np.float32)
         agree.append((predict(api, noisy, doy)[0] == base).mean())
     record_property('agreement_mean', round(float(np.mean(agree)), 4))
     print('TC-08: pixel agreement mean %.1f%%, min %.1f%% over %d windows' % (100 * np.mean(agree), 100 * min(agree), len(agree)))

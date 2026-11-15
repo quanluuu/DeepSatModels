@@ -65,8 +65,8 @@ jobs:
       # tests use a stub predictor, so torch and the weights are not needed here
       - name: Install dependencies
         run: pip install numpy -r api/requirements.txt -r requirements-dev.txt
-      - name: API contract tests (AC-AI-01..07)
-        run: pytest -q tests/test_api.py
+      - name: API contract and attack tests (TC-01..05, ATK-03..10)
+        run: pytest -q tests/test_api.py tests/test_attack_api.py
 
   docker:
     needs: [lint, test-demo, test-api]

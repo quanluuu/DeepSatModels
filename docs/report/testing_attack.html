@@ -1,0 +1,553 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Kiểm thử và tấn công DeepSatModels</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  :root { --ink: #1b1f24; --muted: #5a6370; --line: #d5dae1; --code-bg: #f4f6f8; --accent: #1f5fa8; --ok: #1a7f37; --bad: #b42318; --warn: #9a6700; }
+  body { background: #fff; color: var(--ink); font: 10.5pt/1.5 "Segoe UI", Arial, sans-serif; margin: 0; }
+  h1 { font-size: 22pt; margin: 0 0 4mm; }
+  h2 { font-size: 15pt; color: var(--accent); border-bottom: 1.5px solid var(--accent); padding-bottom: 1mm; margin: 0 0 3mm; }
+  h3 { font-size: 11.5pt; margin: 5mm 0 1.5mm; break-after: avoid; }
+  section { break-before: page; }
+  p, li { margin: 1mm 0; }
+  code { font: 9pt Consolas, monospace; background: var(--code-bg); padding: 0 2px; border-radius: 2px; }
+  pre { font: 8.6pt/1.4 Consolas, monospace; background: var(--code-bg); border: 1px solid var(--line); border-radius: 3px;
+        padding: 2.5mm 3mm; white-space: pre-wrap; word-break: break-word; margin: 1mm 0 2mm; break-inside: avoid; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 2mm 0 3mm; font-size: 9.5pt; break-inside: avoid; }
+  th, td { border: 1px solid var(--line); padding: 1.2mm 2mm; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td code { overflow-wrap: anywhere; }
+  table.tc { table-layout: fixed; font-size: 8.6pt; }
+  .step { border-left: 3px solid var(--accent); padding: 1mm 0 1mm 3mm; margin: 3mm 0; break-inside: avoid; }
+  .step > div { display: grid; grid-template-columns: 26mm 1fr; }
+  .step .k { color: var(--muted); font-weight: 600; }
+  .step h3 { margin-top: 0; }
+  .ok { color: var(--ok); font-weight: 600; } .bad { color: var(--bad); font-weight: 600; } .warn { color: var(--warn); font-weight: 600; }
+  .note { color: var(--muted); font-size: 9.5pt; }
+  figure { margin: 3mm 0; break-inside: avoid; }
+  figure img { max-width: 100%; border: 1px solid var(--line); }
+  figcaption { color: var(--muted); font-size: 9pt; margin-top: 1mm; }
+  .cover { display: flex; flex-direction: column; justify-content: center; min-height: 240mm; }
+  .cover .sub { font-size: 13pt; color: var(--muted); }
+  .toc ol { padding-left: 6mm; } .toc li { margin: 1.2mm 0; }
+  pre.diagram { font: 7.8pt/1.35 Consolas, monospace; white-space: pre; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>Kiểm thử và tấn công hệ thống AI DeepSatModels</h1>
+  <p class="sub">20 test case trên API suy luận <code>TSViT_DINOv3</code> và Docker image: 10 test case kiểm thử (mock, AI, automation) và 10 test case tấn công, kèm kết quả trước và sau khi sửa lỗ hổng</p>
+  <table style="width:auto;margin-top:8mm">
+    <tr><th>Sinh viên</th><td>Lưu Minh Quân</td></tr>
+    <tr><th>Mã sinh viên</th><td>2351260684</td></tr>
+    <tr><th>Lớp</th><td>65TTNT</td></tr>
+    <tr><th>Repository</th><td>https://github.com/quanluuu/DeepSatModels (nhánh <code>report</code>)</td></tr>
+    <tr><th>Code được kiểm thử</th><td>commit <code>c03ba8c</code>, model <code>tsvit-dinov3-fold1-t9</code>, image <code>quanluuu/deepsat-api</code></td></tr>
+    <tr><th>Ngày</th><td>15/11/2026</td></tr>
+  </table>
+</div>
+
+<section class="toc">
+  <h2>Mục lục</h2>
+  <ol>
+    <li>Hệ thống được kiểm thử</li>
+    <li>Môi trường</li>
+    <li>Chiến lược kiểm thử</li>
+    <li>10 test case kiểm thử (TC-01..10)
+      <ol><li>Bảng tổng hợp</li><li>Chi tiết từng test case</li></ol></li>
+    <li>10 test case tấn công (ATK-01..10)
+      <ol><li>Bảng tổng hợp: trước và sau khi sửa</li><li>Chi tiết từng tấn công</li></ol></li>
+    <li>Hồi quy sau khi sửa</li>
+    <li>Rủi ro còn lại</li>
+    <li>Kết luận</li>
+    <li>Phụ lục: số liệu và file nguồn, danh sách commit</li>
+  </ol>
+  <p class="note">Mọi con số trong tài liệu là số đo thật từ các lần chạy ngày 14/11/2026 và 15/11/2026. File bằng chứng nằm trong <code>docs/report/qa/</code> của repository. Phụ lục ghi nguồn của từng con số.</p>
+</section>
+
+<section>
+  <h2>1. Hệ thống được kiểm thử</h2>
+  <p>Hệ thống là một API suy luận phân loại cây trồng từ ảnh vệ tinh Sentinel-2. Model <code>TSViT_DINOv3</code> nhận một cửa sổ 24×24 pixel (240 m × 240 m) theo chuỗi thời gian. Model trả về bản đồ lớp cây trồng cho từng pixel.</p>
+  <table>
+    <tr><th style="width:28%">Thành phần</th><th>Mô tả</th></tr>
+    <tr><td><code>GET /health</code></td><td>Trả <code>status</code>, <code>model_version</code>, <code>device</code></td></tr>
+    <tr><td><code>POST /predict</code></td><td>Nhận một file <code>.npz</code> gồm <code>img</code> (T, 10, 24, 24): 10 band Sentinel-2, reflectance thô; và <code>doy</code> (T,): ngày trong năm. Trả <code>pred</code> 24×24 (lớp 0..18), <code>confidence</code>, <code>status</code>, <code>area_ha</code>, <code>model_version</code>, <code>latency_ms</code></td></tr>
+    <tr><td><code>status</code></td><td><code>OK</code> khi confidence ≥ 0.80; <code>UNCERTAIN</code> khi thấp hơn, người dùng phải xem lại bản đồ; <code>FALLBACK</code> khi model treo quá 10 s hoặc lỗi, <code>pred = null</code></td></tr>
+    <tr><td>Model</td><td><code>TSViT_DINOv3</code>: backbone DINOv3 ViT-S/16 đóng băng cho 3 band RGB của từng ngày, cộng encoder thời gian và không gian của TSViT. Test split (fold 5): OA 79.6%, mIoU 53.9% (model card)</td></tr>
+    <tr><td>Đóng gói</td><td>Docker image <code>quanluuu/deepsat-api</code>, chạy CPU, build và smoke test trong GitHub Actions</td></tr>
+  </table>
+
+  <h3>Luồng xử lý một request /predict</h3>
+<pre class="diagram">client ── POST /predict (.npz) ──▶ middleware: Content-Length &gt; 5 MB + 64 KB ? ──── có ──▶ 413
+                                        │ không
+                                        ▼
+                        read_window: zip, shape, dtype, miền giá trị, doy ? ─ sai ──▶ 422
+                                        │ đúng
+                                        ▼
+                        hàng đợi: đã có 5 suy luận chưa xong ? ───────────── có ──▶ 503 + Retry-After
+                                        │ không
+                                        ▼
+                        model TSViT_DINOv3 (1 luồng, timeout 10 s) ── treo/lỗi ──▶ 200, status FALLBACK
+                                        │
+                                        ▼
+                        200: pred 24×24, confidence, status OK / UNCERTAIN, area_ha</pre>
+  <p class="note">Bước 413, bước 503 và các luật miền giá trị trong <code>read_window</code> được thêm sau khi chạy test tấn công (mục 5). Trước đó, request chỉ bị kiểm kích thước file, shape, dtype và khoảng 1..366 của <code>doy</code>.</p>
+
+  <h3>Phạm vi</h3>
+  <ul>
+    <li><b>Trong phạm vi:</b> API (<code>api/main.py</code>, <code>api/predictor.py</code>), model thật và Docker image API.</li>
+    <li><b>Ngoài phạm vi:</b> app demo Streamlit; quá trình huấn luyện model; hạ tầng triển khai (reverse proxy, xác thực). Hai mục sau được ghi ở phần Rủi ro còn lại.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>2. Môi trường</h2>
+  <table>
+    <tr><th style="width:24%">Mục</th><th>Giá trị</th></tr>
+    <tr><td>Máy local</td><td>Windows 11, Intel Core i7-1355U, RAM 16 GB, chỉ CPU</td></tr>
+    <tr><td>Python local</td><td>3.13.3; torch 2.11.0; numpy 2.5.2; FastAPI 0.162.0; pytest</td></tr>
+    <tr><td>CI</td><td>GitHub Actions <code>ubuntu-latest</code>. Job <code>test-api</code> dùng Python 3.11, cùng bản với image API. Job <code>docker</code> build image và smoke test</td></tr>
+    <tr><td>Load test</td><td>k6 v2.3.0</td></tr>
+    <tr><td>Model</td><td>Checkpoint <code>best.pth</code> (GitHub Release <code>weights-v1</code>, kiểm SHA-256); code DINOv3 commit <code>6876159</code></td></tr>
+    <tr><td>Dữ liệu</td><td>PASTIS24 fold 5, là test split của fold 1. 300 cửa sổ có nhãn, chia đều trên fold, lưu ở <code>tests/fixtures/eval_windows.npz</code> (không commit). Một cửa sổ mẫu <code>tests/fixtures/window.npz</code> (có commit)</td></tr>
+  </table>
+
+  <h3>Nhóm test chạy ở đâu</h3>
+  <table>
+    <tr><th style="width:24%">Nhóm</th><th style="width:22%">Chạy ở</th><th>Lý do</th></tr>
+    <tr><td>TC-01..05, ATK-03..10</td><td>CI, mỗi lần push và PR</td><td>Dùng <code>StubPredictor</code> thay model. Không cần torch, weights hay dữ liệu</td></tr>
+    <tr><td>TC-06..08, ATK-01..02</td><td>Local</td><td>Cần weights, code DINOv3 và dữ liệu PASTIS. Chạy CPU mất 4 đến 8 phút mỗi file</td></tr>
+    <tr><td>TC-09</td><td>CI, job <code>docker</code></td><td>Máy local không cài Docker</td></tr>
+    <tr><td>TC-10</td><td>Local: uvicorn và k6</td><td>Đo tải với model thật trên CPU</td></tr>
+  </table>
+
+  <h3>Chuẩn bị (chạy ở thư mục gốc repo)</h3>
+<pre># cửa sổ dữ liệu cho TC-06..08 và ATK-01..02 (cần pastis24.zip ở thư mục gốc)
+.venv/Scripts/python -I scripts/make_fixture.py --zip pastis24.zip --eval 300 --out tests/fixtures/eval_windows.npz
+
+# model: weights/best.pth và code DINOv3 tại weights/dinov3 (giống bước build image trong CI)
+git init -q weights/dinov3
+git -C weights/dinov3 fetch -q --depth 1 https://github.com/facebookresearch/dinov3.git 6876159a11b4df116f30f667f8c9888617df0751
+git -C weights/dinov3 checkout -q FETCH_HEAD</pre>
+  <p class="note">Thiếu weights hoặc dữ liệu thì TC-06..08 và ATK-01..02 tự skip, kèm lý do. Các test còn lại vẫn chạy.</p>
+</section>
+
+<section>
+  <h2>3. Chiến lược kiểm thử</h2>
+  <h3>Phân loại 10 test case kiểm thử</h3>
+  <table>
+    <tr><th style="width:18%">Loại \ Tầng</th><th>API</th><th>System</th></tr>
+    <tr><td><b>Mock</b></td><td>TC-01..05: thay model bằng <code>StubPredictor</code>. Kiểm logic API: ngưỡng, timeout, lỗi model, validate input</td><td>—</td></tr>
+    <tr><td><b>AI</b></td><td>TC-06..08: model thật qua API (<code>TestClient</code>). Kiểm độ chính xác, tính tất định, độ ổn định với nhiễu</td><td>—</td></tr>
+    <tr><td><b>Automation</b></td><td>TC-01..05 chạy tự động trên CI ở mỗi push</td><td>TC-09: image Docker thật trong CI. TC-10: k6 bắn tải vào API thật</td></tr>
+  </table>
+  <ul>
+    <li><b>Mock test</b> chạy nhanh (dưới 10 s), tất định và không cần GPU hay weights. Vì vậy nó chạy trên CI ở mỗi push.</li>
+    <li><b>AI test</b> đo chất lượng model, việc mock không làm được. TC-08 là test metamorphic: không cần nhãn, chỉ cần quan hệ "nhiễu nhỏ thì dự đoán gần như không đổi".</li>
+    <li><b>Automation test</b> chạy cả hệ thống như người dùng thật: build image, gọi HTTP, đo tải.</li>
+  </ul>
+
+  <h3>Ngưỡng đặt trước khi đo</h3>
+  <table>
+    <tr><th style="width:14%">Test</th><th style="width:40%">Ngưỡng</th><th>Cơ sở</th></tr>
+    <tr><td>TC-06</td><td>OA ≥ 74.6% và mIoU ≥ 48.9%</td><td>Model card (OA 79.6%, mIoU 53.9%) trừ 5 điểm. Dùng 300 cửa sổ: với 50 cửa sổ, khoảng tin cậy bootstrap 95% của OA là 65.0..78.4%, quá rộng</td></tr>
+    <tr><td>TC-08</td><td>Trung bình ≥ 95% pixel giữ lớp khi nhân reflectance với hệ số ngẫu nhiên 0.99..1.01</td><td>Thay đổi reflectance 1% không nên làm đổi lớp cây trồng của một pixel. Giá trị no-data −10000 giữ nguyên</td></tr>
+    <tr><td>TC-10</td><td>p95 &lt; 5 s, tỉ lệ lỗi &lt; 1%, <code>checks</code> &gt; 99%</td><td>Một cửa sổ trên CPU, 5 người dùng đồng thời</td></tr>
+    <tr><td>ATK-01, 02</td><td>An toàn nếu accuracy giảm ≤ 10 điểm, hoặc ≥ 80% cửa sổ bị đánh dấu <code>UNCERTAIN</code></td><td>Tấn công L∞ với ε = 0.03 × độ lệch chuẩn của mỗi band</td></tr>
+    <tr><td>ATK-05</td><td>Bộ nhớ cấp phát đỉnh &lt; 50 MB khi nhận file bomb</td><td>Đo bằng <code>tracemalloc</code></td></tr>
+    <tr><td>ATK-09</td><td><code>/health</code> trả lời &lt; 1 s khi bị flood; request thừa nhận 503</td><td>Service phải còn sống khi quá tải</td></tr>
+  </table>
+
+  <h3>Quy trình cho test tấn công</h3>
+  <ol>
+    <li>Viết test tấn công với kỳ vọng an toàn, chạy trên code chưa sửa. Lưu kết quả "trước": <code>junit-attack-before.xml</code>.</li>
+    <li>Sửa lỗ hổng ở chỗ hẹp nhất (<code>read_window</code>, <code>create_app</code>). Không thêm thư viện.</li>
+    <li>Chạy lại test tấn công. Lưu kết quả "sau": <code>junit-attack-after.xml</code>.</li>
+    <li>Chạy lại TC-01..10 để chắc bản sửa không làm hỏng chức năng (mục 6).</li>
+  </ol>
+</section>
+
+<section>
+  <h2>4. 10 test case kiểm thử (TC-01..10)</h2>
+  <h3>4.1. Bảng tổng hợp</h3>
+  <p>Kết quả đo trên code cuối cùng, sau khi đã sửa lỗ hổng ở mục 5. Số đo của TC-10 trước khi sửa và so sánh trước/sau nằm ở mục 6.</p>
+  <table class="tc">
+    <colgroup><col style="width:7%"><col style="width:17%"><col style="width:11.5%"><col style="width:9%"><col style="width:7%"><col style="width:20.5%"><col style="width:21%"><col style="width:7%"></colgroup>
+    <tr><th>ID</th><th>Kiểm tra gì</th><th>Loại</th><th>Tầng</th><th>Chạy ở</th><th>Kết quả kỳ vọng</th><th>Kết quả thật</th><th></th></tr>
+    <tr><td>TC-01</td><td><code>/health</code> báo phiên bản model</td><td>Mock</td><td>API</td><td>CI</td><td>200, đúng 3 trường <code>status</code>, <code>model_version</code>, <code>device</code></td><td>200, đúng 3 trường</td><td class="ok">PASS</td></tr>
+    <tr><td>TC-02</td><td>Biên ngưỡng confidence 0.80</td><td>Mock</td><td>API</td><td>CI</td><td>0.80 cho <code>OK</code>; 0.79 cho <code>UNCERTAIN</code></td><td>Đúng 4/4 giá trị biên; ngưỡng đổi được qua cấu hình</td><td class="ok">PASS</td></tr>
+    <tr><td>TC-03</td><td>Model treo quá timeout</td><td>Mock</td><td>API</td><td>CI</td><td><code>FALLBACK</code>, <code>pred = null</code>, service vẫn trả lời</td><td><code>FALLBACK</code>; request đang chờ sau đó không chạy model (1 lần gọi)</td><td class="ok">PASS</td></tr>
+    <tr><td>TC-04</td><td>Model ném exception</td><td>Mock</td><td>API</td><td>CI</td><td><code>FALLBACK</code>, không trả 500</td><td>200, <code>FALLBACK</code></td><td class="ok">PASS</td></tr>
+    <tr><td>TC-05</td><td>Input sai bị chặn trước model</td><td>Mock</td><td>API</td><td>CI</td><td>422, model không được gọi</td><td>11/11 file sai cho 422, 0 lần gọi model</td><td class="ok">PASS</td></tr>
+    <tr><td>TC-06</td><td>Độ chính xác trên dữ liệu thật</td><td>AI</td><td>API + model thật</td><td>Local</td><td>OA ≥ 74.6%, mIoU ≥ 48.9%</td><td>OA 79.4%, mIoU 51.6% (300 cửa sổ)</td><td class="ok">PASS</td></tr>
+    <tr><td>TC-07</td><td>Tất định</td><td>AI</td><td>API + model thật</td><td>Local</td><td>2 lần gửi cùng input cho cùng <code>pred</code> và <code>confidence</code></td><td>0 pixel khác nhau; confidence 0.9245 cả hai lần</td><td class="ok">PASS</td></tr>
+    <tr><td>TC-08</td><td>Metamorphic: nhiễu ±1%</td><td>AI</td><td>API + model thật</td><td>Local</td><td>Trung bình ≥ 95% pixel giữ lớp</td><td>Trung bình 97.9%, thấp nhất 84.2% (10 cửa sổ)</td><td class="ok">PASS</td></tr>
+    <tr><td>TC-09</td><td>Container end-to-end</td><td>Automation</td><td>System</td><td>CI</td><td><code>/health</code> ok; <code>/predict</code> 200, <code>pred</code> 24×24, lớp 0..18; file sai cho 422</td><td>7/7 kiểm tra PASS; latency 523 ms</td><td class="ok">PASS</td></tr>
+    <tr><td>TC-10</td><td>Tải: k6 5 VU × 2 phút</td><td>Automation</td><td>System</td><td>Local</td><td>p95 &lt; 5 s, lỗi &lt; 1%</td><td>170 request; p95 3.83 s; lỗi 0%</td><td class="ok">PASS</td></tr>
+  </table>
+  <p class="note">CI ngày 15/11/2026: bước "API contract and attack tests (TC-01..05, ATK-03..10)" cho <code>40 passed</code>, gồm 23 test của TC-01..05 và 17 test của ATK-03..10 (ảnh ở mục 5.1).</p>
+
+  <h3>4.2. Chi tiết từng test case</h3>
+  <p>Mọi lệnh chạy ở thư mục gốc repo, với venv <code>.venv</code>. Trên CI, lệnh tương ứng là <code>pytest -q tests/test_api.py tests/test_attack_api.py</code>.</p>
+
+  <div class="step">
+    <h3>TC-01: /health báo phiên bản model</h3>
+    <div><span class="k">Mục tiêu</span><span>Người vận hành biết model nào đang chạy mà không cần gửi ảnh.</span></div>
+    <div><span class="k">Lệnh</span><span><code>.venv/Scripts/python -m pytest -q tests/test_api.py -k health -rA</code></span></div>
+    <div><span class="k">Kết quả đúng</span><span>200 và JSON đúng bằng <code>{"status": "ok", "model_version": "stub-v0", "device": "cpu"}</code></span></div>
+    <div><span class="k">Kết quả thật</span><span><span class="ok">PASS</span> (<code>test_health_reports_model_version</code>)</span></div>
+    <div><span class="k">Bằng chứng</span><span><code>docs/report/qa/junit-mock.xml</code>; CI</span></div>
+  </div>
+
+  <div class="step">
+    <h3>TC-02: Biên ngưỡng confidence</h3>
+    <div><span class="k">Mục tiêu</span><span>Kiểm hai phía của ngưỡng 0.80. Lỗi <code>&gt;</code> thay cho <code>&gt;=</code> sẽ làm 0.80 thành <code>UNCERTAIN</code>.</span></div>
+    <div><span class="k">Input</span><span>confidence 0.95, 0.80, 0.79, 0.20; stub trả 0.94 và 0.55; ngưỡng đổi thành 0.5</span></div>
+    <div><span class="k">Lệnh</span><span><code>.venv/Scripts/python -m pytest -q tests/test_api.py -k "status_of or confident or uncertain or threshold" -rA</code></span></div>
+    <div><span class="k">Kết quả đúng</span><span>0.95 và 0.80 cho <code>OK</code>; 0.79 và 0.20 cho <code>UNCERTAIN</code>; 0.55 với ngưỡng 0.5 cho <code>OK</code>. Response có <code>pred</code> 24×24, <code>area_ha</code> đúng 2.88 ha mỗi lớp (288 pixel × 0.01 ha)</span></div>
+    <div><span class="k">Kết quả thật</span><span><span class="ok">PASS</span>, 7 test</span></div>
+    <div><span class="k">Bằng chứng</span><span><code>junit-mock.xml</code>; CI</span></div>
+  </div>
+
+  <div class="step">
+    <h3>TC-03: Model treo quá timeout</h3>
+    <div><span class="k">Mục tiêu</span><span>Model treo không được làm treo người dùng. Request đang chờ của người đã nhận FALLBACK không được chiếm model nữa.</span></div>
+    <div><span class="k">Input</span><span>Stub ngủ 0.5 s, timeout 0.05 s. Test thứ hai: stub ngủ 0.3 s, timeout 0.1 s, gửi 2 request liên tiếp</span></div>
+    <div><span class="k">Lệnh</span><span><code>.venv/Scripts/python -m pytest -q tests/test_api.py -k timed -rA</code></span></div>
+    <div><span class="k">Kết quả đúng</span><span><code>status = FALLBACK</code>, <code>pred = null</code>, có <code>message</code>; request thứ hai bị hủy khỏi hàng đợi, model chỉ được gọi 1 lần</span></div>
+    <div><span class="k">Kết quả thật</span><span><span class="ok">PASS</span>, 2 test</span></div>
+    <div><span class="k">Bằng chứng</span><span><code>junit-mock.xml</code>; CI</span></div>
+  </div>
+
+  <div class="step">
+    <h3>TC-04: Model ném exception</h3>
+    <div><span class="k">Mục tiêu</span><span>Lỗi trong model trả kết quả có kiểm soát, không trả 500.</span></div>
+    <div><span class="k">Input</span><span>Stub ném <code>RuntimeError('boom')</code></span></div>
+    <div><span class="k">Lệnh</span><span><code>.venv/Scripts/python -m pytest -q tests/test_api.py -k model_error -rA</code></span></div>
+    <div><span class="k">Kết quả đúng</span><span>200, <code>status = FALLBACK</code>, <code>pred = null</code></span></div>
+    <div><span class="k">Kết quả thật</span><span><span class="ok">PASS</span></span></div>
+    <div><span class="k">Bằng chứng</span><span><code>junit-mock.xml</code>; CI</span></div>
+  </div>
+
+  <div class="step">
+    <h3>TC-05: Input sai bị chặn trước model</h3>
+    <div><span class="k">Mục tiêu</span><span>File sai định dạng trả lỗi rõ ràng và không tốn thời gian chạy model.</span></div>
+    <div><span class="k">Input</span><span>11 file sai: file <code>.exe</code> đổi đuôi; object array; thiếu <code>doy</code>; cửa sổ 24×23; 9 band; <code>doy</code> sai độ dài; T = 367; T = 0; <code>doy</code> = 0 hoặc 400; file lớn hơn 5 MB; file <code>.npy</code> thay vì <code>.npz</code>. Một file đúng với T = 61 phải được nhận</span></div>
+    <div><span class="k">Lệnh</span><span><code>.venv/Scripts/python -m pytest -q tests/test_api.py -k "bad_input or npy or 60_dates" -rA</code></span></div>
+    <div><span class="k">Kết quả đúng</span><span>422 có <code>detail</code>, <code>stub.calls == 0</code>; T = 61 cho 200</span></div>
+    <div><span class="k">Kết quả thật</span><span><span class="ok">PASS</span>, 12 test</span></div>
+    <div><span class="k">Bằng chứng</span><span><code>junit-mock.xml</code>; CI</span></div>
+  </div>
+
+  <div class="step">
+    <h3>TC-06: Độ chính xác trên dữ liệu thật</h3>
+    <div><span class="k">Mục tiêu</span><span>Model đóng gói trong API giữ được độ chính xác ghi trong model card.</span></div>
+    <div><span class="k">Input</span><span>300 cửa sổ PASTIS fold 5 có nhãn, gửi qua <code>/predict</code>. Bỏ pixel nhãn void (lớp 19)</span></div>
+    <div><span class="k">Lệnh</span><span><code>.venv/Scripts/python -m pytest -q tests/test_ai_model.py -rA -s --junitxml docs/report/qa/junit-ai-after.xml</code></span></div>
+    <div><span class="k">Kết quả đúng</span><span>OA ≥ 74.6% và mIoU ≥ 48.9%. OA và mIoU tính từ confusion matrix 19 lớp</span></div>
+    <div><span class="k">Kết quả thật</span><span><span class="ok">PASS</span>: OA 79.4%, mIoU 51.6% (model card: 79.6% và 53.9%)</span></div>
+    <div><span class="k">Bằng chứng</span><span><code>junit-ai-after.xml</code>, thuộc tính <code>OA = 0.7943</code>, <code>mIoU = 0.5163</code></span></div>
+  </div>
+
+  <div class="step">
+    <h3>TC-07: Tất định</h3>
+    <div><span class="k">Mục tiêu</span><span>Cùng một ảnh luôn cho cùng một bản đồ. Kết quả có thể tái lập và kiểm toán.</span></div>
+    <div><span class="k">Input</span><span><code>tests/fixtures/window.npz</code> gửi 2 lần</span></div>
+    <div><span class="k">Lệnh</span><span>như TC-06 (cùng file test)</span></div>
+    <div><span class="k">Kết quả đúng</span><span>Hai <code>pred</code> giống hệt nhau, hai <code>confidence</code> bằng nhau</span></div>
+    <div><span class="k">Kết quả thật</span><span><span class="ok">PASS</span>: 0 pixel khác; confidence 0.9245 và 0.9245</span></div>
+    <div><span class="k">Bằng chứng</span><span><code>junit-ai-after.xml</code>; dòng <code>TC-07</code> in ra khi chạy với <code>-s</code></span></div>
+  </div>
+
+  <div class="step">
+    <h3>TC-08: Metamorphic, nhiễu ±1%</h3>
+    <div><span class="k">Mục tiêu</span><span>Thay đổi rất nhỏ ở input không được làm đổi bản đồ. Test không cần nhãn.</span></div>
+    <div><span class="k">Input</span><span>10 cửa sổ đầu, mỗi giá trị reflectance nhân với hệ số ngẫu nhiên 0.99..1.01 (seed 0). Giá trị no-data −10000 giữ nguyên</span></div>
+    <div><span class="k">Lệnh</span><span>như TC-06</span></div>
+    <div><span class="k">Kết quả đúng</span><span>Trung bình ≥ 95% pixel giữ lớp so với dự đoán gốc</span></div>
+    <div><span class="k">Kết quả thật</span><span><span class="ok">PASS</span>: trung bình 97.9%; cửa sổ thấp nhất 84.2%</span></div>
+    <div><span class="k">Bằng chứng</span><span><code>junit-ai-after.xml</code>, thuộc tính <code>agreement_mean = 0.9793</code></span></div>
+  </div>
+
+  <div class="step">
+    <h3>TC-09: Container end-to-end</h3>
+    <div><span class="k">Mục tiêu</span><span>Image Docker thật (model, weights, code DINOv3) chạy được và trả kết quả đúng hợp đồng.</span></div>
+    <div><span class="k">Chạy ở</span><span>GitHub Actions, job <code>docker</code>, sau khi build image</span></div>
+    <div><span class="k">Lệnh</span> <span><code>docker run -d --name api -p 8000:8000 deepsat-api:ci</code><br><code>python3 scripts/smoke_api.py http://localhost:8000 --wait 180</code></span></div>
+    <div><span class="k">Kết quả đúng</span><span><code>/health</code> ok kèm <code>model_version</code>; <code>/predict</code> 200; <code>status</code> OK hoặc UNCERTAIN; <code>pred</code> 24×24 với lớp 0..18; <code>model_version</code> khớp <code>/health</code>; file sai cho 422; dòng cuối <code>smoke test passed</code></span></div>
+    <div><span class="k">Kết quả thật</span><span><span class="ok">PASS</span>: 7/7 dòng PASS; <code>confidence 0.9245, latency_ms 523</code>, cùng confidence với TC-07 chạy local</span></div>
+  </div>
+  <figure>
+    <img src="qa/tc09-ci-smoke.png" alt="Log CI: smoke test container API, 7 dòng PASS">
+    <figcaption>Hình 1. TC-09: log bước smoke test container trong GitHub Actions.</figcaption>
+  </figure>
+
+  <div class="step">
+    <h3>TC-10: Tải với k6</h3>
+    <div><span class="k">Mục tiêu</span><span>API chịu được 5 người dùng đồng thời trên CPU, không lỗi.</span></div>
+    <div><span class="k">Chạy ở</span><span>Local, hai terminal</span></div>
+    <div><span class="k">Lệnh</span> <span><code>.venv/Scripts/uvicorn --factory api.main:create_app --port 8000</code><br><code>k6 run --summary-export docs/report/qa/k6-summary-after.json tests/load/predict.js</code></span></div>
+    <div><span class="k">Kết quả đúng</span><span>3 threshold của k6 có dấu ✓: <code>p(95)&lt;5000</code>, <code>rate&lt;0.01</code>, <code>checks rate&gt;0.99</code></span></div>
+    <div><span class="k">Kết quả thật</span><span><span class="ok">PASS</span>: 170 request; p50 2.37 s; p95 3.83 s; p99 4.34 s; lỗi 0%; checks 510/510; <code>FALLBACK</code> 0%, <code>UNCERTAIN</code> 0%</span></div>
+    <div><span class="k">Bằng chứng</span><span><code>k6-summary-after.json</code>, <code>k6-run-after.txt</code></span></div>
+  </div>
+</section>
+
+<section>
+  <h2>5. 10 test case tấn công (ATK-01..10)</h2>
+  <p>Mỗi tấn công là một test tự động với kỳ vọng an toàn. Test chạy trên code chưa sửa, rồi chạy lại sau khi sửa. Mọi payload chỉ chạy vào API local hoặc <code>TestClient</code>. Không có tấn công nào nhắm vào hệ thống bên ngoài.</p>
+  <h3>5.1. Bảng tổng hợp: trước và sau khi sửa</h3>
+  <table class="tc">
+    <colgroup><col style="width:7%"><col style="width:13%"><col style="width:17%"><col style="width:27%"><col style="width:23%"><col style="width:13%"></colgroup>
+    <tr><th>ID</th><th>Tấn công</th><th>Mối đe dọa</th><th>Trước khi sửa</th><th>Sau khi sửa</th><th>Trạng thái</th></tr>
+    <tr><td>ATK-01</td><td>Adversarial FGSM</td><td>Nhiễu nhỏ có chủ đích làm sai bản đồ</td><td>Accuracy 80.8% còn 57.1%; 29.5% pixel đổi lớp; <code>UNCERTAIN</code> 1/20 cửa sổ</td><td>Không sửa</td><td class="warn">Rủi ro còn lại</td></tr>
+    <tr><td>ATK-02</td><td>Adversarial PGD, 10 bước</td><td>Như ATK-01, mạnh hơn</td><td>Accuracy 80.8% còn 12.3%; 72.1% pixel đổi lớp; <code>UNCERTAIN</code> 0/20</td><td>Không sửa</td><td class="warn">Rủi ro còn lại</td></tr>
+    <tr><td>ATK-03</td><td>Giá trị ngoài miền</td><td>Ảnh rác nhận kết quả tự tin</td><td><span class="bad">Model thật trả <code>OK</code>, confidence ≥ 0.99</span> cho ảnh toàn 32767, toàn −32768, toàn 0. Stub: 4/4 được nhận</td><td>422, 4/4</td><td class="ok">Đã sửa</td></tr>
+    <tr><td>ATK-04</td><td>Tiêm NaN, Inf</td><td>Crash server, kết quả rác</td><td><span class="bad">NaN ở band RGB: HTTP 500.</span> NaN ở band khác và Inf: <code>OK</code> 0.9997</td><td>422, 2/2</td><td class="ok">Đã sửa</td></tr>
+    <tr><td>ATK-05</td><td>Decompression bomb</td><td>Hết RAM</td><td><span class="bad">File dưới 1 MB làm server cấp phát đỉnh 883 MB</span></td><td>422; đỉnh 3 MB</td><td class="ok">Đã sửa</td></tr>
+    <tr><td>ATK-06</td><td>Pickle (RCE)</td><td>Chạy code tùy ý trên server</td><td>Đã chặn: 422, payload không chạy</td><td>Giữ nguyên</td><td class="ok">An toàn</td></tr>
+    <tr><td>ATK-07</td><td>File giả mạo, path traversal</td><td>Ghi file, vượt kiểm tra định dạng</td><td>Đã chặn: zip cắt cụt và polyglot PNG cho 422; filename <code>../../</code> không được dùng</td><td>Giữ nguyên</td><td class="ok">An toàn</td></tr>
+    <tr><td>ATK-08</td><td>Upload 50 MB</td><td>Tốn RAM, đĩa, băng thông</td><td>422, nhưng chỉ sau khi server đã nhận hết 50 MB</td><td>413 trước khi đọc body</td><td class="ok">Đã sửa</td></tr>
+    <tr><td>ATK-09</td><td>Flood 12 request đồng thời</td><td>Từ chối dịch vụ</td><td>Mọi request xếp hàng; <span class="bad">2 request chờ tới timeout và nhận <code>FALLBACK</code></span>; không có 503</td><td>5 <code>OK</code> và 7 × 503 có <code>Retry-After</code>; <code>/health</code> &lt; 1 s</td><td class="ok">Đã sửa</td></tr>
+    <tr><td>ATK-10</td><td>Thao túng chuỗi <code>doy</code></td><td>Kết quả sai mà không ai biết</td><td>Đảo ngược, xáo trộn, một ngày lặp 3 lần: 3/3 được nhận</td><td>422, 3/3; một ngày lặp 2 lần vẫn được nhận</td><td class="ok">Đã sửa</td></tr>
+  </table>
+  <table style="width:auto">
+    <tr><th>Lần chạy</th><th>Passed</th><th>Failed</th><th>Xfailed</th><th>File</th></tr>
+    <tr><td>Trước khi sửa</td><td>5</td><td class="bad">12</td><td>2</td><td><code>junit-attack-before.xml</code></td></tr>
+    <tr><td>Sau khi sửa</td><td class="ok">17</td><td>0</td><td>2</td><td><code>junit-attack-after.xml</code></td></tr>
+  </table>
+  <p class="note">19 test cho 10 loại tấn công. "Xfailed" là ATK-01/02: test được đánh dấu <code>xfail(strict=True)</code> là lỗ hổng đã biết. Nếu sau này model trở nên bền vững, test chuyển sang đỏ để người viết gỡ đánh dấu.</p>
+  <figure>
+    <img src="qa/atk-ci-green.png" alt="Log CI: pytest tests/test_api.py tests/test_attack_api.py, 40 passed">
+    <figcaption>Hình 2. CI ngày 15/11/2026, job <code>test-api</code>: TC-01..05 và ATK-03..10 chạy cùng nhau, 40 passed.</figcaption>
+  </figure>
+
+  <h3>5.2. Chi tiết từng tấn công</h3>
+  <p>Lệnh cho ATK-03..10 (stub, khoảng 10 s): <code>.venv/Scripts/python -m pytest -q tests/test_attack_api.py -rA -s</code>.
+     Lệnh cho ATK-01..02 (model thật, khoảng 8 phút trên CPU): <code>.venv/Scripts/python -m pytest -q tests/test_attack_model.py -rA -s</code>.</p>
+
+  <div class="step">
+    <h3>ATK-01 và ATK-02: Adversarial FGSM và PGD</h3>
+    <div><span class="k">Cách làm</span><span>Tấn công L∞ không chủ đích trên 20 cửa sổ fold 5. Đạo hàm của loss theo input chỉ ra hướng làm model sai nhiều nhất. Mỗi giá trị đã chuẩn hóa được dịch tối đa ε = 0.03 × độ lệch chuẩn của band. Chỉ sửa 10 band ở các ngày thật, không sửa kênh <code>doy</code> và phần đệm.</span></div>
+    <div><span class="k">FGSM</span><span>1 bước, bước nhảy α = ε (<code>test_fgsm</code>)</span></div>
+    <div><span class="k">PGD</span><span>10 bước, α = 0.01, sau mỗi bước chiếu lại vào khoảng ±ε (<code>test_pgd</code>)</span></div>
+    <div><span class="k">So sánh</span><span>Nhiễu ngẫu nhiên dấu ±ε, cùng ngân sách, không dùng gradient</span></div>
+    <div><span class="k">Tiêu chí an toàn</span><span>Accuracy giảm ≤ 10 điểm, hoặc ≥ 80% cửa sổ bị tấn công có <code>status = UNCERTAIN</code></span></div>
+    <div><span class="k">Kết quả</span><span><span class="bad">Không đạt.</span> Bảng và Hình 3</span></div>
+  </div>
+  <table style="width:auto">
+    <tr><th>Điều kiện</th><th>Accuracy (pixel có nhãn)</th><th>Pixel đổi lớp so với sạch</th><th>Cửa sổ <code>UNCERTAIN</code></th></tr>
+    <tr><td>Sạch</td><td>80.8%</td><td>—</td><td>—</td></tr>
+    <tr><td>Nhiễu ngẫu nhiên ±ε</td><td>71.4%</td><td>—</td><td>—</td></tr>
+    <tr><td>FGSM</td><td class="bad">57.1%</td><td>29.5%</td><td>1/20</td></tr>
+    <tr><td>PGD</td><td class="bad">12.3%</td><td>72.1%</td><td>0/20</td></tr>
+  </table>
+  <figure>
+    <svg viewBox="0 0 640 170" width="100%" role="img" aria-label="Accuracy: sạch 80.8%, nhiễu ngẫu nhiên 71.4%, FGSM 57.1%, PGD 12.3%" style="font: 12px 'Segoe UI', Arial, sans-serif">
+      <g fill="#1b1f24">
+        <text x="140" y="27" text-anchor="end">Sạch</text>
+        <text x="140" y="65" text-anchor="end">Nhiễu ngẫu nhiên ±ε</text>
+        <text x="140" y="103" text-anchor="end">FGSM</text>
+        <text x="140" y="141" text-anchor="end">PGD (10 bước)</text>
+      </g>
+      <rect x="150" y="12" width="371.7" height="22" fill="#1f5fa8"/>
+      <rect x="150" y="50" width="328.4" height="22" fill="#8aa9cf"/>
+      <rect x="150" y="88" width="262.7" height="22" fill="#b42318"/>
+      <rect x="150" y="126" width="56.6" height="22" fill="#b42318"/>
+      <g fill="#1b1f24">
+        <text x="527" y="27">80.8%</text>
+        <text x="484" y="65">71.4%</text>
+        <text x="419" y="103">57.1%</text>
+        <text x="213" y="141">12.3%</text>
+      </g>
+      <line x1="150" y1="6" x2="150" y2="156" stroke="#5a6370"/>
+      <text x="150" y="168" fill="#5a6370">0%</text>
+      <text x="610" y="168" fill="#5a6370" text-anchor="end">100%</text>
+    </svg>
+    <figcaption>Hình 3. ATK-01/02: accuracy trên 20 cửa sổ fold 5, ε = 0.03 × độ lệch chuẩn của band.</figcaption>
+  </figure>
+  <p><b>Nhận xét.</b> PGD làm accuracy giảm từ 80.8% xuống 12.3%, nhưng confidence vẫn cao: 0/20 cửa sổ bị đánh dấu <code>UNCERTAIN</code>. Ngưỡng 0.80 không phát hiện được tấn công. Gradient theo input chỉ khác 0 ở 3 band RGB (B4, B3, B2), là các band backbone DINOv3 nhìn thấy. Kẻ tấn công chỉ cần sửa 3 band này.</p>
+  <p><b>Vì sao chưa sửa.</b> Cách sửa thật sự là huấn luyện đối kháng (adversarial training), nằm ngoài phạm vi môn học. Test được giữ với <code>xfail(strict=True)</code> và số đo trong lý do. Hướng giảm thiểu ở mục 7.</p>
+  <p class="note">Ghi chú kỹ thuật: backbone DINOv3 đóng băng chạy trong <code>torch.no_grad</code>, nên gradient không tới input. Test tạm thay <code>torch.no_grad</code> bằng <code>contextlib.nullcontext</code> qua <code>mock.patch</code> khi tấn công. Code model không bị sửa.</p>
+
+  <div class="step">
+    <h3>ATK-03: Giá trị ngoài miền</h3>
+    <div><span class="k">Cách làm</span><span>Gửi <code>img</code> toàn 32767, toàn −32768, toàn 0, và một ảnh hợp lệ có 1 pixel bằng 30000 (<code>test_out_of_range_reflectance_is_rejected</code>)</span></div>
+    <div><span class="k">Trước</span><span>Stub: 4/4 được nhận. Model thật: toàn 32767 cho <code>OK</code> 0.9906; toàn −32768 cho <code>OK</code> 0.9998; toàn 0 cho <code>OK</code> 0.9998 (<code>atk-real-before.txt</code>)</span></div>
+    <div><span class="k">Sửa</span><span>Miền giá trị lấy từ 300 cửa sổ thật: −3186..19080, cộng giá trị no-data −10000 (có ở 88/300 cửa sổ). Đặt biên rộng hơn: −5000..25000. Ảnh hằng số là không có dữ liệu</span></div>
+    <div><span class="k">Sau</span><span><span class="ok">422, 4/4.</span> 0/300 cửa sổ thật bị chặn (TC-06 vẫn chạy đủ 300 cửa sổ)</span></div>
+  </div>
+<pre>IMG_RANGE = (-5000, 25000)  # 300 PASTIS fold 5 windows hold -3186..19080 besides the nodata value
+NODATA = -10000             # PASTIS no-data reflectance, present in 88 of those 300 windows
+...
+if not ((img == NODATA) | ((img &gt;= IMG_RANGE[0]) &amp; (img &lt;= IMG_RANGE[1]))).all():
+    raise ValueError('img values must be in %d..%d, or %d for no data' % (*IMG_RANGE, NODATA))
+if img.min() == img.max():
+    raise ValueError('img is constant: no data in this window')</pre>
+
+  <div class="step">
+    <h3>ATK-04: Tiêm NaN, Inf</h3>
+    <div><span class="k">Cách làm</span><span>Ảnh float32 hợp lệ, đặt 1 giá trị thành NaN hoặc Inf (<code>test_nan_or_inf_is_rejected</code>)</span></div>
+    <div><span class="k">Trước</span><span>Stub: 2/2 được nhận. Model thật: NaN ở band 3 cho <code>OK</code> 0.9997; <span class="bad">NaN ở band 2 (RGB) cho HTTP 500</span>; Inf ở band 2 cho <code>OK</code> 0.9997</span></div>
+    <div><span class="k">Sau</span><span><span class="ok">422, 2/2</span></span></div>
+  </div>
+<pre>if not np.isfinite(img).all():
+    raise ValueError('img contains NaN or Inf')</pre>
+
+  <div class="step">
+    <h3>ATK-05: Decompression bomb</h3>
+    <div><span class="k">Cách làm</span><span>File <code>.npz</code> dưới 1 MB, qua được giới hạn 5 MB. Bên trong là mảng float64 (20000, 10, 24, 24) toàn số 0, 879 MB khi giải nén. Đo bộ nhớ cấp phát đỉnh bằng <code>tracemalloc</code></span></div>
+    <div><span class="k">Trước</span><span><span class="bad">Đỉnh 925 732 112 byte (883 MB).</span> <code>d['img']</code> giải nén toàn bộ rồi mới kiểm shape</span></div>
+    <div><span class="k">Sửa</span><span>Đọc kích thước khai báo của từng mảng trong thư mục zip, trước khi giải nén. Giới hạn là mảng hợp lệ lớn nhất: 366 × 10 × 24 × 24 float64</span></div>
+    <div><span class="k">Sau</span><span><span class="ok">422; đỉnh 3 MB</span></span></div>
+  </div>
+<pre>MAX_MEMBER_BYTES = MAX_DATES * BANDS * WIN * WIN * 8    # largest valid array (float64); a bigger member is a decompression bomb
+...
+if any(m.file_size &gt; MAX_MEMBER_BYTES for m in d.zip.infolist()):   # sizes from the zip directory: checked before inflating
+    raise ValueError('array too large for one window')</pre>
+
+  <div class="step">
+    <h3>ATK-06: Pickle, thực thi code từ xa</h3>
+    <div><span class="k">Cách làm</span><span>Hai payload: object array trong <code>.npz</code>, và file pickle thô. Khi unpickle, payload tạo một file đánh dấu trong thư mục tạm của pytest (<code>test_pickle_payload_is_never_unpickled</code>)</span></div>
+    <div><span class="k">Kết quả</span><span><span class="ok">An toàn trước và sau:</span> 422, file đánh dấu không được tạo. API đọc với <code>np.load(..., allow_pickle=False)</code></span></div>
+  </div>
+
+  <div class="step">
+    <h3>ATK-07: File giả mạo và path traversal</h3>
+    <div><span class="k">Cách làm</span><span>Zip bị cắt ở byte 2000; file PNG polyglot (header PNG trước một <code>.npz</code> hợp lệ); file hợp lệ với tên <code>../../atk07_written.npz</code> và content-type <code>image/png</code></span></div>
+    <div><span class="k">Kết quả</span><span><span class="ok">An toàn trước và sau:</span> hai file giả cho 422. File có tên lạ vẫn được xử lý đúng (200, <code>OK</code>), không có file nào được ghi theo tên đó. API chỉ đọc nội dung, không dùng tên file hay content-type</span></div>
+  </div>
+
+  <div class="step">
+    <h3>ATK-08: Upload quá cỡ</h3>
+    <div><span class="k">Cách làm</span><span>Gửi body 50 MB (<code>test_oversized_upload_is_refused_before_reading</code>)</span></div>
+    <div><span class="k">Trước</span><span>422 từ <code>read_window</code>, nhưng chỉ sau khi framework đã nhận và lưu tạm cả 50 MB</span></div>
+    <div><span class="k">Sửa</span><span>Middleware đọc header <code>Content-Length</code>. Lớn hơn 5 MB + 64 KB thì trả 413 ngay, không đọc body</span></div>
+    <div><span class="k">Sau</span><span><span class="ok">413, model không được gọi</span></span></div>
+  </div>
+<pre>size = request.headers.get('content-length', '')
+if size.isdigit() and int(size) &gt; MAX_BODY:
+    return JSONResponse({'detail': 'request larger than %d MB' % (MAX_BYTES // 2**20)}, status_code=413)</pre>
+
+  <div class="step">
+    <h3>ATK-09: Flood</h3>
+    <div><span class="k">Cách làm</span><span>12 request đồng thời. Stub mất 0.5 s mỗi lần, timeout 5 s, model chạy 1 request một lúc. Giữa lúc flood, gọi <code>/health</code> và đo thời gian (<code>test_flood_gets_503_and_health_stays_up</code>)</span></div>
+    <div><span class="k">Trước</span><span>12 × 200; <span class="bad">2 request chờ quá 5 s và nhận <code>FALLBACK</code></span>; không có 503. Hàng đợi không giới hạn: request càng nhiều, người đến sau càng chờ lâu rồi vẫn không có kết quả</span></div>
+    <div><span class="k">Sửa</span><span>Đếm số suy luận đã nhận mà chưa xong. Từ 5 trở lên (1 đang chạy, 4 đang chờ) thì trả 503 ngay, kèm <code>Retry-After</code>. Bộ đếm giảm trong <code>add_done_callback</code>, nên không bị rò khi model lỗi hay request bị hủy</span></div>
+    <div><span class="k">Sau</span><span><span class="ok">5 <code>OK</code> và 7 × 503 có <code>Retry-After</code>; không có <code>FALLBACK</code>; <code>/health</code> &lt; 1 s.</span> Kết quả giống nhau trong 5/5 lần chạy</span></div>
+  </div>
+<pre>with lock:
+    if pending &gt;= MAX_PENDING:
+        raise HTTPException(status_code=503, detail='server busy, retry later', headers={'Retry-After': str(math.ceil(timeout_s))})
+    pending += 1
+...
+future = pool.submit(predictor.predict, img, doy)
+future.add_done_callback(release)     # runs on finish, failure or cancel, so the count never leaks</pre>
+
+  <div class="step">
+    <h3>ATK-10: Thao túng chuỗi thời gian</h3>
+    <div><span class="k">Cách làm</span><span>Ảnh hợp lệ với <code>doy</code> đảo ngược, xáo trộn, hoặc một ngày lặp 3 lần (<code>test_doy_manipulation_is_rejected</code>)</span></div>
+    <div><span class="k">Trước</span><span>3/3 được nhận: API gọi model với chuỗi ngày sai và trả bản đồ như bình thường</span></div>
+    <div><span class="k">Sửa</span><span><code>doy</code> phải không giảm, mỗi ngày xuất hiện tối đa 2 lần. Không dùng luật "tăng ngặt" vì dữ liệu PASTIS thật có ngày chụp 2 lần</span></div>
+    <div><span class="k">Sau</span><span><span class="ok">422, 3/3.</span> Một ngày lặp 2 lần vẫn cho 200 (<code>test_same_day_twice_is_accepted</code>)</span></div>
+  </div>
+<pre>if (np.diff(doy) &lt; 0).any():
+    raise ValueError('doy must be in date order')
+if np.bincount(doy).max() &gt; MAX_SAME_DOY:
+    raise ValueError('a day of year appears more than %d times' % MAX_SAME_DOY)</pre>
+</section>
+
+<section>
+  <h2>6. Hồi quy sau khi sửa</h2>
+  <p>Bản sửa thêm luật chặn input và giới hạn hàng đợi. Phải kiểm lại hai điều: luật mới không chặn dữ liệu thật, và giới hạn hàng đợi không trả 503 khi tải bình thường.</p>
+  <table>
+    <tr><th style="width:26%">Test</th><th>Trước khi sửa</th><th>Sau khi sửa</th><th style="width:10%"></th></tr>
+    <tr><td>TC-01..05 (mock)</td><td>23 passed</td><td>23 passed; CI 40 passed cùng ATK-03..10</td><td class="ok">Giữ</td></tr>
+    <tr><td>TC-06: OA, mIoU</td><td>79.4%, 51.6%</td><td>79.4%, 51.6%; 0/300 cửa sổ bị chặn</td><td class="ok">Giữ</td></tr>
+    <tr><td>TC-07: tất định</td><td>PASS</td><td>PASS</td><td class="ok">Giữ</td></tr>
+    <tr><td>TC-08: pixel giữ lớp</td><td>97.9%</td><td>97.9%</td><td class="ok">Giữ</td></tr>
+    <tr><td>TC-10: số request trong 2 phút</td><td>109</td><td>170</td><td></td></tr>
+    <tr><td>TC-10: p50 / p95 / p99</td><td>4.60 s / 4.90 s / 4.99 s</td><td>2.37 s / 3.83 s / 4.34 s</td><td class="ok">Đạt</td></tr>
+    <tr><td>TC-10: lỗi, 503</td><td>0%, không có</td><td>0%, không có (510/510 check status 200)</td><td class="ok">Giữ</td></tr>
+  </table>
+  <ul>
+    <li>Một lỗi hồi quy đã được bắt trong lúc sửa. Luật miền giá trị mới làm TC-08 nhận 422: nhiễu ±1% biến giá trị no-data −10000 thành khoảng −10100, nằm ngoài miền. Lỗi nằm ở test, không ở API: dữ liệu thật không bao giờ có −10100. Test được sửa để giữ nguyên giá trị no-data, kết quả TC-08 không đổi.</li>
+    <li>TC-10 sau khi sửa nhanh hơn, nhưng bản sửa không làm suy luận nhanh hơn. Hai lần đo chạy trên cùng máy laptop vào thời điểm khác nhau, nên tải nền của máy khác nhau. Kết luận chỉ là: giới hạn 5 suy luận không gây 503 với 5 người dùng, và p95 vẫn dưới 5 s.</li>
+  </ul>
+  <p class="note">Bằng chứng: <code>junit-mock.xml</code>, <code>junit-ai.xml</code> (trước), <code>junit-ai-after.xml</code> (sau), <code>k6-run.txt</code> và <code>k6-summary.json</code> (trước), <code>k6-run-after.txt</code> và <code>k6-summary-after.json</code> (sau).</p>
+</section>
+
+<section>
+  <h2>7. Rủi ro còn lại</h2>
+  <table>
+    <tr><th style="width:26%">Rủi ro</th><th style="width:38%">Hậu quả</th><th>Hướng khắc phục</th></tr>
+    <tr><td>Adversarial (ATK-01/02) chưa sửa</td><td>Nhiễu 0.03 × std trên 3 band RGB làm accuracy còn 12.3%, mà confidence vẫn cao và status vẫn <code>OK</code></td><td>Huấn luyện đối kháng với PGD; hiệu chỉnh confidence (temperature scaling) để ngưỡng 0.80 có ý nghĩa; chỉ nhận ảnh từ nguồn tin cậy (ví dụ tải trực tiếp từ Copernicus) thay vì file do người dùng gửi</td></tr>
+    <tr><td>API không có xác thực</td><td>Ai gọi được URL thì dùng được model và tốn CPU của server</td><td>API key hoặc OAuth ở reverse proxy hay API gateway</td></tr>
+    <tr><td>Giới hạn 503 là chung cho mọi client</td><td>Một client flood liên tục có thể chiếm hết 5 chỗ, người khác chỉ nhận 503</td><td>Rate limit theo client (IP hoặc API key) ở reverse proxy</td></tr>
+    <tr><td><code>/docs</code> và <code>/openapi.json</code> đang mở</td><td>Lộ toàn bộ cấu trúc API cho người lạ</td><td>Tắt khi chạy production: <code>FastAPI(docs_url=None, redoc_url=None, openapi_url=None)</code></td></tr>
+    <tr><td>Upload chunked không có <code>Content-Length</code></td><td>Không bị middleware 413 chặn; body vẫn được lưu tạm xuống đĩa trước khi <code>read_window</code> cắt ở 5 MB</td><td>Giới hạn kích thước body ở reverse proxy (ví dụ <code>client_max_body_size 6m</code> của nginx). Uvicorn không có tùy chọn này</td></tr>
+  </table>
+
+  <h2 style="margin-top:8mm">8. Kết luận</h2>
+  <ul>
+    <li>10/10 test case kiểm thử PASS: 5 mock trên CI, 3 AI với model thật, 2 automation (container trên CI và tải k6).</li>
+    <li>Model trong API giữ đúng chất lượng đã công bố: OA 79.4%, mIoU 51.6% trên 300 cửa sổ, so với 79.6% và 53.9% trong model card.</li>
+    <li>Trong 10 loại tấn công, 2 loại đã bị chặn từ đầu (pickle, file giả mạo). 6 loại là lỗ hổng thật và đã được sửa: ảnh rác nhận <code>OK</code> 0.99, NaN gây HTTP 500, bomb chiếm 883 MB RAM, upload lớn được đọc hết, flood gây <code>FALLBACK</code>, <code>doy</code> sai thứ tự được nhận.</li>
+    <li>2 loại chưa sửa: FGSM và PGD làm accuracy còn 57.1% và 12.3%. Ngưỡng confidence không phát hiện được các tấn công này.</li>
+    <li>Mọi bản sửa giữ TC-01..10 xanh. ATK-03..10 chạy trên CI ở mỗi push, nên lỗ hổng cũ không quay lại mà không ai biết.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Phụ lục A. Số liệu và file nguồn</h2>
+  <p>Thư mục gốc của file: <code>docs/report/qa/</code>, trừ khi ghi khác.</p>
+  <table class="tc">
+    <colgroup><col style="width:40%"><col style="width:60%"></colgroup>
+    <tr><th>Số liệu</th><th>Nguồn</th></tr>
+    <tr><td>TC-01..05: 23 test passed</td><td><code>junit-mock.xml</code></td></tr>
+    <tr><td>CI: 40 passed (TC-01..05 và ATK-03..10)</td><td><code>atk-ci-green.png</code> (Hình 2)</td></tr>
+    <tr><td>TC-06: OA 79.4%, mIoU 51.6%</td><td><code>junit-ai.xml</code>, <code>junit-ai-after.xml</code>: thuộc tính <code>OA = 0.7943</code>, <code>mIoU = 0.5163</code></td></tr>
+    <tr><td>TC-07: 0 pixel khác, confidence 0.9245</td><td>Output dòng <code>TC-07</code> khi chạy <code>tests/test_ai_model.py -s</code>; junit chỉ ghi PASS</td></tr>
+    <tr><td>TC-08: trung bình 97.9%</td><td><code>junit-ai-after.xml</code>: <code>agreement_mean = 0.9793</code></td></tr>
+    <tr><td>TC-08: thấp nhất 84.2%</td><td>Output dòng <code>TC-08</code> khi chạy với <code>-s</code></td></tr>
+    <tr><td>TC-09: 7 dòng PASS, confidence 0.9245, latency 523 ms</td><td><code>tc09-ci-smoke.png</code> (Hình 1)</td></tr>
+    <tr><td>TC-10 trước: 109 request, p50 4.60 s, p95 4.90 s, p99 4.99 s, lỗi 0%</td><td><code>k6-run.txt</code>, <code>k6-summary.json</code></td></tr>
+    <tr><td>TC-10 sau: 170 request, p50 2.37 s, p95 3.83 s, p99 4.34 s, lỗi 0%, 510/510 check</td><td><code>k6-run-after.txt</code>, <code>k6-summary-after.json</code></td></tr>
+    <tr><td>ATK-01/02: accuracy 80.8%, 71.4%, 57.1%, 12.3%; pixel đổi lớp 29.5%, 72.1%; <code>UNCERTAIN</code> 1/20, 0/20</td><td><code>junit-attack-after.xml</code>: thuộc tính <code>acc_clean</code>, <code>acc_random</code>, <code>acc_attack</code>, <code>flip_rate</code>, <code>uncertain_rate</code></td></tr>
+    <tr><td>ATK-03/04 trên model thật: <code>OK</code> 0.9906, 0.9998, 0.9998, 0.9997; HTTP 500</td><td><code>atk-real-before.txt</code></td></tr>
+    <tr><td>ATK trước khi sửa: 5 passed, 12 failed, 2 xfailed; bomb 925 732 112 byte; flood không có 503</td><td><code>junit-attack-before.xml</code>: thông báo lỗi của từng test</td></tr>
+    <tr><td>ATK sau khi sửa: 17 passed, 2 xfailed</td><td><code>junit-attack-after.xml</code></td></tr>
+    <tr><td>ATK-05 sau: đỉnh 3 MB. ATK-09: trước 2 <code>FALLBACK</code>; sau 5 <code>OK</code> và 7 × 503, 5/5 lần chạy</td><td>Output dòng <code>ATK-05</code>, <code>ATK-09</code> khi chạy <code>tests/test_attack_api.py -s</code></td></tr>
+    <tr><td>Miền giá trị −3186..19080; no-data ở 88/300 cửa sổ; 0/300 bị chặn</td><td>Đo trên <code>tests/fixtures/eval_windows.npz</code>; ghi trong <code>SPEC-ai-attack-suite.md</code> và <code>api/main.py</code></td></tr>
+    <tr><td>Model card: OA 79.6%, mIoU 53.9%</td><td><code>api/MODEL_CARD.md</code></td></tr>
+  </table>
+</section>
+
+<section>
+  <h2>Phụ lục B. Danh sách commit (nhánh <code>report</code>)</h2>
+  <table class="tc">
+    <colgroup><col style="width:13%"><col style="width:87%"></colgroup>
+    <tr><th>Commit</th><th>Nội dung</th></tr>
+    <tr><td><code>45a744e</code></td><td>Spec: capability map và ai-test-suite</td></tr>
+    <tr><td><code>c4de7bc</code></td><td><code>make_fixture --eval</code>: cắt cửa sổ fold 5 có nhãn cho TC-06..08</td></tr>
+    <tr><td><code>bfbb0a6</code></td><td>API nhận cửa sổ PASTIS có hơn 60 ngày</td></tr>
+    <tr><td><code>9f01626</code></td><td>TC-06..08: accuracy, tất định, nhiễu trên model thật</td></tr>
+    <tr><td><code>dbcc68a</code></td><td>TC-01..05: gắn ID cho mock test, lưu JUnit</td></tr>
+    <tr><td><code>00352e5</code></td><td>TC-10: k6 với model thật trên uvicorn local</td></tr>
+    <tr><td><code>ef73283</code></td><td>TC-09: bằng chứng smoke test container trên CI</td></tr>
+    <tr><td><code>b598fad</code></td><td>Spec: ai-attack-suite</td></tr>
+    <tr><td><code>aeea711</code></td><td>ATK-03..10: test tấn công API, trước khi sửa</td></tr>
+    <tr><td><code>460ec58</code></td><td>ATK-01..02: FGSM và PGD trên model thật, <code>xfail</code></td></tr>
+    <tr><td><code>abf5cc5</code></td><td>Sửa: chặn bomb, NaN/Inf, giá trị ngoài miền, <code>doy</code> sai thứ tự</td></tr>
+    <tr><td><code>02f061a</code></td><td>Sửa: 413 cho body quá lớn, 503 khi đã có 5 suy luận chờ</td></tr>
+    <tr><td><code>c03ba8c</code></td><td>CI chạy test tấn công; bằng chứng sau khi sửa</td></tr>
+    <tr><td><code>f8cda24</code> trở đi</td><td>Spec và nguồn HTML của tài liệu này</td></tr>
+  </table>
+</section>
+
+</body>
+</html>

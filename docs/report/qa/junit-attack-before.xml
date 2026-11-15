@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="12" skipped="2" tests="19" time="445.198" timestamp="2026-11-14T18:25:13.757093+07:00" hostname="DESKTOP-TDP7P7C"><testcase classname="tests.test_attack_api" name="test_out_of_range_reflectance_is_rejected[int16-max]" time="0.038"><failure message="assert False&#10; +  where False = rejected(b'PK\x03\x04-\x00\x00\x00\x00\x00\x00\x00!\x00&quot;\xaa\xe1\xae\xff\xff\xff\xff\xff\xff\xff\xff\x07\x00\x14\x00img.npy\x01...\x00\x00\x80\x01\xb9\xe1\x00\x00doy.npyPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00j\x00\x00\x00\x9a\xe2\x00\x00\x00\x00')&#10;[+1 more line; full report in element text]">img = array([[[[32767, 32767, 32767, ..., 32767, 32767, 32767],
+         [32767, 32767, 32767, ..., 32767, 32767, 32767],
+  ..., 32767, 32767],
+         [32767, 32767, 32767, ..., 32767, 32767, 32767]]]],
+      shape=(5, 10, 24, 24), dtype=int16)
+
+    @pytest.mark.parametrize('img', [
+        np.full((5, 10, 24, 24), 32767, np.int16),                  # int16 max everywhere
+        np.full((5, 10, 24, 24), -32768, np.int16),                 # int16 min everywhere
+        np.where(np.arange(5 * 10 * 24 * 24).reshape(5, 10, 24, 24) == 0, 30000, good()['img']).astype(np.int16),    # one pixel 30000
+        np.zeros((5, 10, 24, 24), np.int16),                        # constant: no data
+    ], ids=['int16-max', 'int16-min', 'one-pixel-30000', 'constant'])
+    def test_out_of_range_reflectance_is_rejected(img):
+&gt;       assert rejected(with_img(img))
+E       assert False
+E        +  where False = rejected(b'PK\x03\x04-\x00\x00\x00\x00\x00\x00\x00!\x00"\xaa\xe1\xae\xff\xff\xff\xff\xff\xff\xff\xff\x07\x00\x14\x00img.npy\x01...\x00\x00\x80\x01\xb9\xe1\x00\x00doy.npyPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00j\x00\x00\x00\x9a\xe2\x00\x00\x00\x00')
+E        +    where b'PK\x03\x04-\x00\x00\x00\x00\x00\x00\x00!\x00"\xaa\xe1\xae\xff\xff\xff\xff\xff\xff\xff\xff\x07\x00\x14\x00img.npy\x01...\x00\x00\x80\x01\xb9\xe1\x00\x00doy.npyPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00j\x00\x00\x00\x9a\xe2\x00\x00\x00\x00' = with_img(array([[[[32767, 32767, 32767, ..., 32767, 32767, 32767],\n         [32767, 32767, 32767, ..., 32767, 32767, 32767],\n  ..., 32767, 32767],\n         [32767, 32767, 32767, ..., 32767, 32767, 32767]]]],\n      shape=(5, 10, 24, 24), dtype=int16))
+
+tests\test_attack_api.py:37: AssertionError</failure></testcase><testcase classname="tests.test_attack_api" name="test_out_of_range_reflectance_is_rejected[int16-min]" time="0.010"><failure message="assert False&#10; +  where False = rejected(b&quot;PK\x03\x04-\x00\x00\x00\x00\x00\x00\x00!\x00\xd3\xcb;\x0f\xff\xff\xff\xff\xff\xff\xff\xff\x07\x00\x14\x00img.npy\x01...\x00\x00\x80\x01\xb9\xe1\x00\x00doy.npyPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00j\x00\x00\x00\x9a\xe2\x00\x00\x00\x00&quot;)&#10;[+1 more line; full report in element text]">img = array([[[[-32768, -32768, -32768, ..., -32768, -32768, -32768],
+         [-32768, -32768, -32768, ..., -32768, -32768,..., -32768],
+         [-32768, -32768, -32768, ..., -32768, -32768, -32768]]]],
+      shape=(5, 10, 24, 24), dtype=int16)
+
+    @pytest.mark.parametrize('img', [
+        np.full((5, 10, 24, 24), 32767, np.int16),                  # int16 max everywhere
+        np.full((5, 10, 24, 24), -32768, np.int16),                 # int16 min everywhere
+        np.where(np.arange(5 * 10 * 24 * 24).reshape(5, 10, 24, 24) == 0, 30000, good()['img']).astype(np.int16),    # one pixel 30000
+        np.zeros((5, 10, 24, 24), np.int16),                        # constant: no data
+    ], ids=['int16-max', 'int16-min', 'one-pixel-30000', 'constant'])
+    def test_out_of_range_reflectance_is_rejected(img):
+&gt;       assert rejected(with_img(img))
+E       assert False
+E        +  where False = rejected(b"PK\x03\x04-\x00\x00\x00\x00\x00\x00\x00!\x00\xd3\xcb;\x0f\xff\xff\xff\xff\xff\xff\xff\xff\x07\x00\x14\x00img.npy\x01...\x00\x00\x80\x01\xb9\xe1\x00\x00doy.npyPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00j\x00\x00\x00\x9a\xe2\x00\x00\x00\x00")
+E        +    where b"PK\x03\x04-\x00\x00\x00\x00\x00\x00\x00!\x00\xd3\xcb;\x0f\xff\xff\xff\xff\xff\xff\xff\xff\x07\x00\x14\x00img.npy\x01...\x00\x00\x80\x01\xb9\xe1\x00\x00doy.npyPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00j\x00\x00\x00\x9a\xe2\x00\x00\x00\x00" = with_img(array([[[[-32768, -32768, -32768, ..., -32768, -32768, -32768],\n         [-32768, -32768, -32768, ..., -32768, -32768,..., -32768],\n         [-32768, -32768, -32768, ..., -32768, -32768, -32768]]]],\n      shape=(5, 10, 24, 24), dtype=int16))
+
+tests\test_attack_api.py:37: AssertionError</failure></testcase><testcase classname="tests.test_attack_api" name="test_out_of_range_reflectance_is_rejected[one-pixel-30000]" time="0.009"><failure message="AssertionError: assert False&#10; +  where False = rejected(b'PK\x03\x04-\x00\x00\x00\x00\x00\x00\x00!\x00\xc7\xcf\x07\xde\xff\xff\xff\xff\xff\xff\xff\xff\x07\x00\x14\x00img.npy\...\x00\x00\x80\x01\xb9\xe1\x00\x00doy.npyPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00j\x00\x00\x00\x9a\xe2\x00\x00\x00\x00')&#10;[+1 more line; full report in element text]">img = array([[[[30000,  1910,  1533, ...,  2447,  2012,     8],
+         [ 1182,  2572,  1662, ...,  2011,  1576,  1941],
+  ...,  2127,  1875],
+         [ 2288,  1738,   496, ...,  2928,  2544,  1800]]]],
+      shape=(5, 10, 24, 24), dtype=int16)
+
+    @pytest.mark.parametrize('img', [
+        np.full((5, 10, 24, 24), 32767, np.int16),                  # int16 max everywhere
+        np.full((5, 10, 24, 24), -32768, np.int16),                 # int16 min everywhere
+        np.where(np.arange(5 * 10 * 24 * 24).reshape(5, 10, 24, 24) == 0, 30000, good()['img']).astype(np.int16),    # one pixel 30000
+        np.zeros((5, 10, 24, 24), np.int16),                        # constant: no data
+    ], ids=['int16-max', 'int16-min', 'one-pixel-30000', 'constant'])
+    def test_out_of_range_reflectance_is_rejected(img):
+&gt;       assert rejected(with_img(img))
+E       AssertionError: assert False
+E        +  where False = rejected(b'PK\x03\x04-\x00\x00\x00\x00\x00\x00\x00!\x00\xc7\xcf\x07\xde\xff\xff\xff\xff\xff\xff\xff\xff\x07\x00\x14\x00img.npy\...\x00\x00\x80\x01\xb9\xe1\x00\x00doy.npyPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00j\x00\x00\x00\x9a\xe2\x00\x00\x00\x00')
+E        +    where b'PK\x03\x04-\x00\x00\x00\x00\x00\x00\x00!\x00\xc7\xcf\x07\xde\xff\xff\xff\xff\xff\xff\xff\xff\x07\x00\x14\x00img.npy\...\x00\x00\x80\x01\xb9\xe1\x00\x00doy.npyPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00j\x00\x00\x00\x9a\xe2\x00\x00\x00\x00' = with_img(array([[[[30000,  1910,  1533, ...,  2447,  2012,     8],\n         [ 1182,  2572,  1662, ...,  2011,  1576,  1941],\n  ...,  2127,  1875],\n         [ 2288,  1738,   496, ...,  2928,  2544,  1800]]]],\n      shape=(5, 10, 24, 24), dtype=int16))
+
+tests\test_attack_api.py:37: AssertionError</failure></testcase><testcase classname="tests.test_attack_api" name="test_out_of_range_reflectance_is_rejected[constant]" time="0.009"><failure message="assert False&#10; +  where False = rejected(b&quot;PK\x03\x04-\x00\x00\x00\x00\x00\x00\x00!\x00\x05\x8cn,\xff\xff\xff\xff\xff\xff\xff\xff\x07\x00\x14\x00img.npy\x01\x0...\x00\x00\x80\x01\xb9\xe1\x00\x00doy.npyPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00j\x00\x00\x00\x9a\xe2\x00\x00\x00\x00&quot;)&#10;[+1 more line; full report in element text]">img = array([[[[0, 0, 0, ..., 0, 0, 0],
+         [0, 0, 0, ..., 0, 0, 0],
+         [0, 0, 0, ..., 0, 0, 0],
+         ...,
+  ...., 0, 0, 0],
+         [0, 0, 0, ..., 0, 0, 0],
+         [0, 0, 0, ..., 0, 0, 0]]]], shape=(5, 10, 24, 24), dtype=int16)
+
+    @pytest.mark.parametrize('img', [
+        np.full((5, 10, 24, 24), 32767, np.int16),                  # int16 max everywhere
+        np.full((5, 10, 24, 24), -32768, np.int16),                 # int16 min everywhere
+        np.where(np.arange(5 * 10 * 24 * 24).reshape(5, 10, 24, 24) == 0, 30000, good()['img']).astype(np.int16),    # one pixel 30000
+        np.zeros((5, 10, 24, 24), np.int16),                        # constant: no data
+    ], ids=['int16-max', 'int16-min', 'one-pixel-30000', 'constant'])
+    def test_out_of_range_reflectance_is_rejected(img):
+&gt;       assert rejected(with_img(img))
+E       assert False
+E        +  where False = rejected(b"PK\x03\x04-\x00\x00\x00\x00\x00\x00\x00!\x00\x05\x8cn,\xff\xff\xff\xff\xff\xff\xff\xff\x07\x00\x14\x00img.npy\x01\x0...\x00\x00\x80\x01\xb9\xe1\x00\x00doy.npyPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00j\x00\x00\x00\x9a\xe2\x00\x00\x00\x00")
+E        +    where b"PK\x03\x04-\x00\x00\x00\x00\x00\x00\x00!\x00\x05\x8cn,\xff\xff\xff\xff\xff\xff\xff\xff\x07\x00\x14\x00img.npy\x01\x0...\x00\x00\x80\x01\xb9\xe1\x00\x00doy.npyPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00j\x00\x00\x00\x9a\xe2\x00\x00\x00\x00" = with_img(array([[[[0, 0, 0, ..., 0, 0, 0],\n         [0, 0, 0, ..., 0, 0, 0],\n         [0, 0, 0, ..., 0, 0, 0],\n         ...,\n  ...., 0, 0, 0],\n         [0, 0, 0, ..., 0, 0, 0],\n         [0, 0, 0, ..., 0, 0, 0]]]], shape=(5, 10, 24, 24), dtype=int16))
+
+tests\test_attack_api.py:37: AssertionError</failure></testcase><testcase classname="tests.test_attack_api" name="test_nan_or_inf_is_rejected[nan]" time="0.010"><failure message="AssertionError: assert False&#10; +  where False = rejected(b'PK\x03\x04-\x00\x00\x00\x00\x00\x00\x00!\x00:\xd5~\xcf\xff\xff\xff\xff\xff\xff\xff\xff\x07\x00\x14\x00img.npy\x01\x0...\x00\x00\x80\x01\xb9\xc2\x01\x00doy.npyPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00j\x00\x00\x00\x9a\xc3\x01\x00\x00\x00')&#10;[+1 more line; full report in element text]">bad = nan
+
+    @pytest.mark.parametrize('bad', [np.nan, np.inf], ids=['nan', 'inf'])
+    def test_nan_or_inf_is_rejected(bad):
+        img = good()['img'].astype(np.float32)
+        img[2, 3, 4, 5] = bad
+&gt;       assert rejected(with_img(img))
+E       AssertionError: assert False
+E        +  where False = rejected(b'PK\x03\x04-\x00\x00\x00\x00\x00\x00\x00!\x00:\xd5~\xcf\xff\xff\xff\xff\xff\xff\xff\xff\x07\x00\x14\x00img.npy\x01\x0...\x00\x00\x80\x01\xb9\xc2\x01\x00doy.npyPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00j\x00\x00\x00\x9a\xc3\x01\x00\x00\x00')
+E        +    where b'PK\x03\x04-\x00\x00\x00\x00\x00\x00\x00!\x00:\xd5~\xcf\xff\xff\xff\xff\xff\xff\xff\xff\x07\x00\x14\x00img.npy\x01\x0...\x00\x00\x80\x01\xb9\xc2\x01\x00doy.npyPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00j\x00\x00\x00\x9a\xc3\x01\x00\x00\x00' = with_img(array([[[[2.551e+03, 1.910e+03, 1.533e+03, ..., 2.447e+03, 2.012e+03,\n          8.000e+00],\n         [1.182e+03, 2.572...88e+03, 1.738e+03, 4.960e+02, ..., 2.928e+03, 2.544e+03,\n          1.800e+03]]]], shape=(5, 10, 24, 24), dtype=float32))
+
+tests\test_attack_api.py:45: AssertionError</failure></testcase><testcase classname="tests.test_attack_api" name="test_nan_or_inf_is_rejected[inf]" time="0.012"><failure message="AssertionError: assert False&#10; +  where False = rejected(b'PK\x03\x04-\x00\x00\x00\x00\x00\x00\x00!\x00\x90w81\xff\xff\xff\xff\xff\xff\xff\xff\x07\x00\x14\x00img.npy\x01\x00\x...\x00\x00\x80\x01\xb9\xc2\x01\x00doy.npyPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00j\x00\x00\x00\x9a\xc3\x01\x00\x00\x00')&#10;[+1 more line; full report in element text]">bad = inf
+
+    @pytest.mark.parametrize('bad', [np.nan, np.inf], ids=['nan', 'inf'])
+    def test_nan_or_inf_is_rejected(bad):
+        img = good()['img'].astype(np.float32)
+        img[2, 3, 4, 5] = bad
+&gt;       assert rejected(with_img(img))
+E       AssertionError: assert False
+E        +  where False = rejected(b'PK\x03\x04-\x00\x00\x00\x00\x00\x00\x00!\x00\x90w81\xff\xff\xff\xff\xff\xff\xff\xff\x07\x00\x14\x00img.npy\x01\x00\x...\x00\x00\x80\x01\xb9\xc2\x01\x00doy.npyPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00j\x00\x00\x00\x9a\xc3\x01\x00\x00\x00')
+E        +    where b'PK\x03\x04-\x00\x00\x00\x00\x00\x00\x00!\x00\x90w81\xff\xff\xff\xff\xff\xff\xff\xff\x07\x00\x14\x00img.npy\x01\x00\x...\x00\x00\x80\x01\xb9\xc2\x01\x00doy.npyPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00j\x00\x00\x00\x9a\xc3\x01\x00\x00\x00' = with_img(array([[[[2.551e+03, 1.910e+03, 1.533e+03, ..., 2.447e+03, 2.012e+03,\n          8.000e+00],\n         [1.182e+03, 2.572...88e+03, 1.738e+03, 4.960e+02, ..., 2.928e+03, 2.544e+03,\n          1.800e+03]]]], shape=(5, 10, 24, 24), dtype=float32))
+
+tests\test_attack_api.py:45: AssertionError</failure></testcase><testcase classname="tests.test_attack_api" name="test_decompression_bomb_is_rejected_without_inflating" time="4.018"><failure message="assert 925732112 &lt; (50 * (2 ** 20))">def test_decompression_bomb_is_rejected_without_inflating():
+        raw = bomb()
+        assert len(raw) &lt; 5 * 2**20     # passes the upload size limit
+        stub = StubPredictor()
+        c = client(stub)
+        tracemalloc.start()
+        r = post(c, raw)
+        peak = tracemalloc.get_traced_memory()[1]
+        tracemalloc.stop()
+        print('ATK-05: %.1f MB upload, peak allocation %.0f MB, status %d' % (len(raw) / 2**20, peak / 2**20, r.status_code))
+        assert r.status_code == 422 and stub.calls == 0
+&gt;       assert peak &lt; 50 * 2**20
+E       assert 925732112 &lt; (50 * (2 ** 20))
+
+tests\test_attack_api.py:76: AssertionError</failure></testcase><testcase classname="tests.test_attack_api" name="test_pickle_payload_is_never_unpickled" time="0.020" /><testcase classname="tests.test_attack_api" name="test_forged_file_is_rejected[truncated-zip]" time="0.007" /><testcase classname="tests.test_attack_api" name="test_forged_file_is_rejected[png-polyglot]" time="0.007" /><testcase classname="tests.test_attack_api" name="test_filename_and_content_type_are_ignored" time="0.008" /><testcase classname="tests.test_attack_api" name="test_oversized_upload_is_refused_before_reading" time="0.087"><failure message="assert (422 == 413)&#10; +  where 422 = &lt;Response [422 Unprocessable Content]&gt;.status_code">def test_oversized_upload_is_refused_before_reading():
+        stub = StubPredictor()
+        r = post(client(stub), bytes(50 * 2**20))      # TestClient sends Content-Length
+&gt;       assert r.status_code == 413 and stub.calls == 0
+E       assert (422 == 413)
+E        +  where 422 = &lt;Response [422 Unprocessable Content]&gt;.status_code
+
+tests\test_attack_api.py:118: AssertionError</failure></testcase><testcase classname="tests.test_attack_api" name="test_flood_gets_503_and_health_stays_up" time="5.063"><failure message="assert (503 in [200, 200, 200, 200, 200, 200, ...])">def test_flood_gets_503_and_health_stays_up():
+        stub = StubPredictor(sleep=0.5)
+        c = client(stub, timeout_s=5)
+        raw = npz_bytes(**good())
+        with ThreadPoolExecutor(12) as pool:
+            futures = [pool.submit(post, c, raw) for _ in range(12)]
+            time.sleep(0.2)
+            t = time.perf_counter()
+            health = c.get('/health')
+            health_s = time.perf_counter() - t
+            results = [f.result() for f in futures]
+        codes = [r.status_code for r in results]
+        statuses = [r.json()['status'] for r in results if r.status_code == 200]
+        print('ATK-09: codes %s, statuses %s, model calls %d, /health %.2f s' % (sorted(codes), sorted(statuses), stub.calls, health_s))
+        assert health.status_code == 200 and health_s &lt; 1
+&gt;       assert 503 in codes and all(r.headers.get('retry-after') for r in results if r.status_code == 503)
+E       assert (503 in [200, 200, 200, 200, 200, 200, ...])
+
+tests\test_attack_api.py:137: AssertionError</failure></testcase><testcase classname="tests.test_attack_api" name="test_doy_manipulation_is_rejected[reversed]" time="0.015"><failure message="AssertionError: assert False&#10; +  where False = rejected(b'PK\x03\x04-\x00\x00\x00\x00\x00\x00\x00!\x00\xa4^Q\xd8\xff\xff\xff\xff\xff\xff\xff\xff\x07\x00\x14\x00img.npy\x01\x0...\x00\x00\x80\x01\xb9\xe1\x00\x00doy.npyPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00j\x00\x00\x00\x9a\xe2\x00\x00\x00\x00')&#10;[+1 more line; full report in element text]">doy = array([50, 40, 30, 20, 10])
+
+    @pytest.mark.parametrize('doy', [np.arange(5, 0, -1) * 10, np.array([30, 10, 50, 20, 40]), np.array([10, 20, 20, 20, 30])],
+                             ids=['reversed', 'shuffled', 'same-day-3-times'])
+    def test_doy_manipulation_is_rejected(doy):
+&gt;       assert rejected(npz_bytes(img=good()['img'], doy=doy))
+E       AssertionError: assert False
+E        +  where False = rejected(b'PK\x03\x04-\x00\x00\x00\x00\x00\x00\x00!\x00\xa4^Q\xd8\xff\xff\xff\xff\xff\xff\xff\xff\x07\x00\x14\x00img.npy\x01\x0...\x00\x00\x80\x01\xb9\xe1\x00\x00doy.npyPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00j\x00\x00\x00\x9a\xe2\x00\x00\x00\x00')
+E        +    where b'PK\x03\x04-\x00\x00\x00\x00\x00\x00\x00!\x00\xa4^Q\xd8\xff\xff\xff\xff\xff\xff\xff\xff\x07\x00\x14\x00img.npy\x01\x0...\x00\x00\x80\x01\xb9\xe1\x00\x00doy.npyPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00j\x00\x00\x00\x9a\xe2\x00\x00\x00\x00' = npz_bytes(img=array([[[[2551, 1910, 1533, ..., 2447, 2012,    8],\n         [1182, 2572, 1662, ..., 2011, 1576, 1941],\n         [ 771....., 1502, 2127, 1875],\n         [2288, 1738,  496, ..., 2928, 2544, 1800]]]],\n      shape=(5, 10, 24, 24), dtype=int16), doy=array([50, 40, 30, 20, 10]))
+
+tests\test_attack_api.py:145: AssertionError</failure></testcase><testcase classname="tests.test_attack_api" name="test_doy_manipulation_is_rejected[shuffled]" time="0.028"><failure message="AssertionError: assert False&#10; +  where False = rejected(b'PK\x03\x04-\x00\x00\x00\x00\x00\x00\x00!\x00\xa4^Q\xd8\xff\xff\xff\xff\xff\xff\xff\xff\x07\x00\x14\x00img.npy\x01\x0...\x00\x00\x80\x01\xb9\xe1\x00\x00doy.npyPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00j\x00\x00\x00\x9a\xe2\x00\x00\x00\x00')&#10;[+1 more line; full report in element text]">doy = array([30, 10, 50, 20, 40])
+
+    @pytest.mark.parametrize('doy', [np.arange(5, 0, -1) * 10, np.array([30, 10, 50, 20, 40]), np.array([10, 20, 20, 20, 30])],
+                             ids=['reversed', 'shuffled', 'same-day-3-times'])
+    def test_doy_manipulation_is_rejected(doy):
+&gt;       assert rejected(npz_bytes(img=good()['img'], doy=doy))
+E       AssertionError: assert False
+E        +  where False = rejected(b'PK\x03\x04-\x00\x00\x00\x00\x00\x00\x00!\x00\xa4^Q\xd8\xff\xff\xff\xff\xff\xff\xff\xff\x07\x00\x14\x00img.npy\x01\x0...\x00\x00\x80\x01\xb9\xe1\x00\x00doy.npyPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00j\x00\x00\x00\x9a\xe2\x00\x00\x00\x00')
+E        +    where b'PK\x03\x04-\x00\x00\x00\x00\x00\x00\x00!\x00\xa4^Q\xd8\xff\xff\xff\xff\xff\xff\xff\xff\x07\x00\x14\x00img.npy\x01\x0...\x00\x00\x80\x01\xb9\xe1\x00\x00doy.npyPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00j\x00\x00\x00\x9a\xe2\x00\x00\x00\x00' = npz_bytes(img=array([[[[2551, 1910, 1533, ..., 2447, 2012,    8],\n         [1182, 2572, 1662, ..., 2011, 1576, 1941],\n         [ 771....., 1502, 2127, 1875],\n         [2288, 1738,  496, ..., 2928, 2544, 1800]]]],\n      shape=(5, 10, 24, 24), dtype=int16), doy=array([30, 10, 50, 20, 40]))
+
+tests\test_attack_api.py:145: AssertionError</failure></testcase><testcase classname="tests.test_attack_api" name="test_doy_manipulation_is_rejected[same-day-3-times]" time="0.010"><failure message="AssertionError: assert False&#10; +  where False = rejected(b'PK\x03\x04-\x00\x00\x00\x00\x00\x00\x00!\x00\xa4^Q\xd8\xff\xff\xff\xff\xff\xff\xff\xff\x07\x00\x14\x00img.npy\x01\x0...\x00\x00\x80\x01\xb9\xe1\x00\x00doy.npyPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00j\x00\x00\x00\x9a\xe2\x00\x00\x00\x00')&#10;[+1 more line; full report in element text]">doy = array([10, 20, 20, 20, 30])
+
+    @pytest.mark.parametrize('doy', [np.arange(5, 0, -1) * 10, np.array([30, 10, 50, 20, 40]), np.array([10, 20, 20, 20, 30])],
+                             ids=['reversed', 'shuffled', 'same-day-3-times'])
+    def test_doy_manipulation_is_rejected(doy):
+&gt;       assert rejected(npz_bytes(img=good()['img'], doy=doy))
+E       AssertionError: assert False
+E        +  where False = rejected(b'PK\x03\x04-\x00\x00\x00\x00\x00\x00\x00!\x00\xa4^Q\xd8\xff\xff\xff\xff\xff\xff\xff\xff\x07\x00\x14\x00img.npy\x01\x0...\x00\x00\x80\x01\xb9\xe1\x00\x00doy.npyPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00j\x00\x00\x00\x9a\xe2\x00\x00\x00\x00')
+E        +    where b'PK\x03\x04-\x00\x00\x00\x00\x00\x00\x00!\x00\xa4^Q\xd8\xff\xff\xff\xff\xff\xff\xff\xff\x07\x00\x14\x00img.npy\x01\x0...\x00\x00\x80\x01\xb9\xe1\x00\x00doy.npyPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00j\x00\x00\x00\x9a\xe2\x00\x00\x00\x00' = npz_bytes(img=array([[[[2551, 1910, 1533, ..., 2447, 2012,    8],\n         [1182, 2572, 1662, ..., 2011, 1576, 1941],\n         [ 771....., 1502, 2127, 1875],\n         [2288, 1738,  496, ..., 2928, 2544, 1800]]]],\n      shape=(5, 10, 24, 24), dtype=int16), doy=array([10, 20, 20, 20, 30]))
+
+tests\test_attack_api.py:145: AssertionError</failure></testcase><testcase classname="tests.test_attack_api" name="test_same_day_twice_is_accepted" time="0.007" /><testcase classname="tests.test_attack_model" name="test_fgsm" time="88.475"><properties><property name="acc_clean" value="0.8081" /><property name="acc_random" value="0.7136" /><property name="acc_attack" value="0.5715" /><property name="uncertain_rate" value="0.05" /><property name="flip_rate" value="0.2954" /></properties><skipped type="pytest.xfail" message="measured 2026-11-14 on 20 windows, eps 0.03 std: accuracy 80.8% -&gt; 57.1%, UNCERTAIN 1/20" /></testcase><testcase classname="tests.test_attack_model" name="test_pgd" time="345.872"><properties><property name="acc_clean" value="0.8081" /><property name="acc_random" value="0.7136" /><property name="acc_attack" value="0.1228" /><property name="uncertain_rate" value="0.0" /><property name="flip_rate" value="0.7211" /></properties><skipped type="pytest.xfail" message="measured 2026-11-14 on 20 windows, eps 0.03 std: accuracy 80.8% -&gt; 12.3%, UNCERTAIN 0/20" /></testcase></testsuite></testsuites>

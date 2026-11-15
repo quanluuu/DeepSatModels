@@ -29,7 +29,7 @@ Module id cố định, không đổi tên giữa chừng.
 | Người đọc PDF | Giảng viên, tiếng Việt |
 | TC-06: dữ liệu và ngưỡng | 300 cửa sổ fold 5 (ban đầu 50; đổi ngày 2026-11-14 vì với 50 cửa sổ, bootstrap 95% của OA là 65.0..78.4% và có lớp chỉ 1 pixel nhãn). Ngưỡng = model card trừ 5 điểm: OA ≥ 74.6%, mIoU ≥ 48.9% |
 | ATK-09: khi quá tải | 503 kèm `Retry-After` khi đã có hơn 4 request chờ |
-| ATK-03, ATK-10: input sai miền giá trị | Chặn ở `read_window`, trả 422 (reflectance ngoài miền, `doy` không tăng dần) |
+| ATK-03, ATK-10: input sai miền giá trị | Chặn ở `read_window`, trả 422 (reflectance ngoài miền, `doy` giảm hoặc lặp quá 2 lần; dữ liệu PASTIS thật có ngày lặp nên không dùng luật "tăng ngặt", xem SPEC-ai-attack-suite) |
 
 ## Danh sách test case đề xuất (duyệt cùng map)
 

@@ -1,0 +1,6 @@
+﻿ATK-03 int16 max       HTTP 200 {'status': 'OK', 'confidence': 0.9906, 'message': None}
+ATK-03 int16 min       HTTP 200 {'status': 'OK', 'confidence': 0.9998, 'message': None}
+ATK-03 constant 0      HTTP 200 {'status': 'OK', 'confidence': 0.9998, 'message': None}
+ATK-04 NaN band 3      HTTP 200 {'status': 'OK', 'confidence': 0.9997, 'message': None}
+ATK-04 NaN band 2(RGB) HTTP 500 Internal Server Error
+ATK-04 Inf band 2(RGB) HTTP 200 {'status': 'OK', 'confidence': 0.9997, 'message': None}

@@ -22,7 +22,8 @@
   td code { overflow-wrap: anywhere; }
   table.tc { table-layout: fixed; font-size: 8.6pt; }
   .step { border-left: 3px solid var(--accent); padding: 1mm 0 1mm 3mm; margin: 3mm 0; break-inside: avoid; }
-  .step .k { display: inline-block; min-width: 26mm; color: var(--muted); font-weight: 600; }
+  .step > div { display: grid; grid-template-columns: 26mm 1fr; }
+  .step .k { color: var(--muted); font-weight: 600; }
   .step h3 { margin-top: 0; }
   .ok { color: var(--ok); font-weight: 600; } .bad { color: var(--bad); font-weight: 600; } .warn { color: var(--warn); font-weight: 600; }
   .note { color: var(--muted); font-size: 9.5pt; }
@@ -168,10 +169,133 @@ git -C weights/dinov3 checkout -q FETCH_HEAD</pre>
     <li>Chạy lại test tấn công. Lưu kết quả "sau": <code>junit-attack-after.xml</code>.</li>
     <li>Chạy lại TC-01..10 để chắc bản sửa không làm hỏng chức năng (mục 6).</li>
   </ol>
-  <p>Mọi payload tấn công chỉ chạy vào API local hoặc <code>TestClient</code>. Không có tấn công nào nhắm vào hệ thống bên ngoài.</p>
 </section>
 
-<!-- P2: section 4 -->
+<section>
+  <h2>4. 10 test case kiểm thử (TC-01..10)</h2>
+  <h3>4.1. Bảng tổng hợp</h3>
+  <p>Kết quả đo trên code cuối cùng, sau khi đã sửa lỗ hổng ở mục 5. Số đo của TC-10 trước khi sửa và so sánh trước/sau nằm ở mục 6.</p>
+  <table class="tc">
+    <colgroup><col style="width:7%"><col style="width:17%"><col style="width:11.5%"><col style="width:9%"><col style="width:7%"><col style="width:20.5%"><col style="width:21%"><col style="width:7%"></colgroup>
+    <tr><th>ID</th><th>Kiểm tra gì</th><th>Loại</th><th>Tầng</th><th>Chạy ở</th><th>Kết quả kỳ vọng</th><th>Kết quả thật</th><th></th></tr>
+    <tr><td>TC-01</td><td><code>/health</code> báo phiên bản model</td><td>Mock</td><td>API</td><td>CI</td><td>200, đúng 3 trường <code>status</code>, <code>model_version</code>, <code>device</code></td><td>200, đúng 3 trường</td><td class="ok">PASS</td></tr>
+    <tr><td>TC-02</td><td>Biên ngưỡng confidence 0.80</td><td>Mock</td><td>API</td><td>CI</td><td>0.80 cho <code>OK</code>; 0.79 cho <code>UNCERTAIN</code></td><td>Đúng 4/4 giá trị biên; ngưỡng đổi được qua cấu hình</td><td class="ok">PASS</td></tr>
+    <tr><td>TC-03</td><td>Model treo quá timeout</td><td>Mock</td><td>API</td><td>CI</td><td><code>FALLBACK</code>, <code>pred = null</code>, service vẫn trả lời</td><td><code>FALLBACK</code>; request đang chờ sau đó không chạy model (1 lần gọi)</td><td class="ok">PASS</td></tr>
+    <tr><td>TC-04</td><td>Model ném exception</td><td>Mock</td><td>API</td><td>CI</td><td><code>FALLBACK</code>, không trả 500</td><td>200, <code>FALLBACK</code></td><td class="ok">PASS</td></tr>
+    <tr><td>TC-05</td><td>Input sai bị chặn trước model</td><td>Mock</td><td>API</td><td>CI</td><td>422, model không được gọi</td><td>11/11 file sai cho 422, 0 lần gọi model</td><td class="ok">PASS</td></tr>
+    <tr><td>TC-06</td><td>Độ chính xác trên dữ liệu thật</td><td>AI</td><td>API + model thật</td><td>Local</td><td>OA ≥ 74.6%, mIoU ≥ 48.9%</td><td>OA 79.4%, mIoU 51.6% (300 cửa sổ)</td><td class="ok">PASS</td></tr>
+    <tr><td>TC-07</td><td>Tất định</td><td>AI</td><td>API + model thật</td><td>Local</td><td>2 lần gửi cùng input cho cùng <code>pred</code> và <code>confidence</code></td><td>0 pixel khác nhau; confidence 0.9245 cả hai lần</td><td class="ok">PASS</td></tr>
+    <tr><td>TC-08</td><td>Metamorphic: nhiễu ±1%</td><td>AI</td><td>API + model thật</td><td>Local</td><td>Trung bình ≥ 95% pixel giữ lớp</td><td>Trung bình 97.9%, thấp nhất 84.2% (10 cửa sổ)</td><td class="ok">PASS</td></tr>
+    <tr><td>TC-09</td><td>Container end-to-end</td><td>Automation</td><td>System</td><td>CI</td><td><code>/health</code> ok; <code>/predict</code> 200, <code>pred</code> 24×24, lớp 0..18; file sai cho 422</td><td>7/7 kiểm tra PASS; latency 523 ms</td><td class="ok">PASS</td></tr>
+    <tr><td>TC-10</td><td>Tải: k6 5 VU × 2 phút</td><td>Automation</td><td>System</td><td>Local</td><td>p95 &lt; 5 s, lỗi &lt; 1%</td><td>170 request; p95 3.83 s; lỗi 0%</td><td class="ok">PASS</td></tr>
+  </table>
+  <p class="note">CI ngày 15/11/2026: bước "API contract and attack tests (TC-01..05, ATK-03..10)" cho <code>40 passed</code>, gồm 23 test của TC-01..05 và 17 test của ATK-03..10 (ảnh ở mục 5.1).</p>
+
+  <h3>4.2. Chi tiết từng test case</h3>
+  <p>Mọi lệnh chạy ở thư mục gốc repo, với venv <code>.venv</code>. Trên CI, lệnh tương ứng là <code>pytest -q tests/test_api.py tests/test_attack_api.py</code>.</p>
+
+  <div class="step">
+    <h3>TC-01: /health báo phiên bản model</h3>
+    <div><span class="k">Mục tiêu</span><span>Người vận hành biết model nào đang chạy mà không cần gửi ảnh.</span></div>
+    <div><span class="k">Lệnh</span><span><code>.venv/Scripts/python -m pytest -q tests/test_api.py -k health -rA</code></span></div>
+    <div><span class="k">Kết quả đúng</span><span>200 và JSON đúng bằng <code>{"status": "ok", "model_version": "stub-v0", "device": "cpu"}</code></span></div>
+    <div><span class="k">Kết quả thật</span><span><span class="ok">PASS</span> (<code>test_health_reports_model_version</code>)</span></div>
+    <div><span class="k">Bằng chứng</span><span><code>docs/report/qa/junit-mock.xml</code>; CI</span></div>
+  </div>
+
+  <div class="step">
+    <h3>TC-02: Biên ngưỡng confidence</h3>
+    <div><span class="k">Mục tiêu</span><span>Kiểm hai phía của ngưỡng 0.80. Lỗi <code>&gt;</code> thay cho <code>&gt;=</code> sẽ làm 0.80 thành <code>UNCERTAIN</code>.</span></div>
+    <div><span class="k">Input</span><span>confidence 0.95, 0.80, 0.79, 0.20; stub trả 0.94 và 0.55; ngưỡng đổi thành 0.5</span></div>
+    <div><span class="k">Lệnh</span><span><code>.venv/Scripts/python -m pytest -q tests/test_api.py -k "status_of or confident or uncertain or threshold" -rA</code></span></div>
+    <div><span class="k">Kết quả đúng</span><span>0.95 và 0.80 cho <code>OK</code>; 0.79 và 0.20 cho <code>UNCERTAIN</code>; 0.55 với ngưỡng 0.5 cho <code>OK</code>. Response có <code>pred</code> 24×24, <code>area_ha</code> đúng 2.88 ha mỗi lớp (288 pixel × 0.01 ha)</span></div>
+    <div><span class="k">Kết quả thật</span><span><span class="ok">PASS</span>, 7 test</span></div>
+    <div><span class="k">Bằng chứng</span><span><code>junit-mock.xml</code>; CI</span></div>
+  </div>
+
+  <div class="step">
+    <h3>TC-03: Model treo quá timeout</h3>
+    <div><span class="k">Mục tiêu</span><span>Model treo không được làm treo người dùng. Request đang chờ của người đã nhận FALLBACK không được chiếm model nữa.</span></div>
+    <div><span class="k">Input</span><span>Stub ngủ 0.5 s, timeout 0.05 s. Test thứ hai: stub ngủ 0.3 s, timeout 0.1 s, gửi 2 request liên tiếp</span></div>
+    <div><span class="k">Lệnh</span><span><code>.venv/Scripts/python -m pytest -q tests/test_api.py -k timed -rA</code></span></div>
+    <div><span class="k">Kết quả đúng</span><span><code>status = FALLBACK</code>, <code>pred = null</code>, có <code>message</code>; request thứ hai bị hủy khỏi hàng đợi, model chỉ được gọi 1 lần</span></div>
+    <div><span class="k">Kết quả thật</span><span><span class="ok">PASS</span>, 2 test</span></div>
+    <div><span class="k">Bằng chứng</span><span><code>junit-mock.xml</code>; CI</span></div>
+  </div>
+
+  <div class="step">
+    <h3>TC-04: Model ném exception</h3>
+    <div><span class="k">Mục tiêu</span><span>Lỗi trong model trả kết quả có kiểm soát, không trả 500.</span></div>
+    <div><span class="k">Input</span><span>Stub ném <code>RuntimeError('boom')</code></span></div>
+    <div><span class="k">Lệnh</span><span><code>.venv/Scripts/python -m pytest -q tests/test_api.py -k model_error -rA</code></span></div>
+    <div><span class="k">Kết quả đúng</span><span>200, <code>status = FALLBACK</code>, <code>pred = null</code></span></div>
+    <div><span class="k">Kết quả thật</span><span><span class="ok">PASS</span></span></div>
+    <div><span class="k">Bằng chứng</span><span><code>junit-mock.xml</code>; CI</span></div>
+  </div>
+
+  <div class="step">
+    <h3>TC-05: Input sai bị chặn trước model</h3>
+    <div><span class="k">Mục tiêu</span><span>File sai định dạng trả lỗi rõ ràng và không tốn thời gian chạy model.</span></div>
+    <div><span class="k">Input</span><span>11 file sai: file <code>.exe</code> đổi đuôi; object array; thiếu <code>doy</code>; cửa sổ 24×23; 9 band; <code>doy</code> sai độ dài; T = 367; T = 0; <code>doy</code> = 0 hoặc 400; file lớn hơn 5 MB; file <code>.npy</code> thay vì <code>.npz</code>. Một file đúng với T = 61 phải được nhận</span></div>
+    <div><span class="k">Lệnh</span><span><code>.venv/Scripts/python -m pytest -q tests/test_api.py -k "bad_input or npy or 60_dates" -rA</code></span></div>
+    <div><span class="k">Kết quả đúng</span><span>422 có <code>detail</code>, <code>stub.calls == 0</code>; T = 61 cho 200</span></div>
+    <div><span class="k">Kết quả thật</span><span><span class="ok">PASS</span>, 12 test</span></div>
+    <div><span class="k">Bằng chứng</span><span><code>junit-mock.xml</code>; CI</span></div>
+  </div>
+
+  <div class="step">
+    <h3>TC-06: Độ chính xác trên dữ liệu thật</h3>
+    <div><span class="k">Mục tiêu</span><span>Model đóng gói trong API giữ được độ chính xác ghi trong model card.</span></div>
+    <div><span class="k">Input</span><span>300 cửa sổ PASTIS fold 5 có nhãn, gửi qua <code>/predict</code>. Bỏ pixel nhãn void (lớp 19)</span></div>
+    <div><span class="k">Lệnh</span><span><code>.venv/Scripts/python -m pytest -q tests/test_ai_model.py -rA -s --junitxml docs/report/qa/junit-ai-after.xml</code></span></div>
+    <div><span class="k">Kết quả đúng</span><span>OA ≥ 74.6% và mIoU ≥ 48.9%. OA và mIoU tính từ confusion matrix 19 lớp</span></div>
+    <div><span class="k">Kết quả thật</span><span><span class="ok">PASS</span>: OA 79.4%, mIoU 51.6% (model card: 79.6% và 53.9%)</span></div>
+    <div><span class="k">Bằng chứng</span><span><code>junit-ai-after.xml</code>, thuộc tính <code>OA = 0.7943</code>, <code>mIoU = 0.5163</code></span></div>
+  </div>
+
+  <div class="step">
+    <h3>TC-07: Tất định</h3>
+    <div><span class="k">Mục tiêu</span><span>Cùng một ảnh luôn cho cùng một bản đồ. Kết quả có thể tái lập và kiểm toán.</span></div>
+    <div><span class="k">Input</span><span><code>tests/fixtures/window.npz</code> gửi 2 lần</span></div>
+    <div><span class="k">Lệnh</span><span>như TC-06 (cùng file test)</span></div>
+    <div><span class="k">Kết quả đúng</span><span>Hai <code>pred</code> giống hệt nhau, hai <code>confidence</code> bằng nhau</span></div>
+    <div><span class="k">Kết quả thật</span><span><span class="ok">PASS</span>: 0 pixel khác; confidence 0.9245 và 0.9245</span></div>
+    <div><span class="k">Bằng chứng</span><span><code>junit-ai-after.xml</code>; dòng <code>TC-07</code> in ra khi chạy với <code>-s</code></span></div>
+  </div>
+
+  <div class="step">
+    <h3>TC-08: Metamorphic, nhiễu ±1%</h3>
+    <div><span class="k">Mục tiêu</span><span>Thay đổi rất nhỏ ở input không được làm đổi bản đồ. Test không cần nhãn.</span></div>
+    <div><span class="k">Input</span><span>10 cửa sổ đầu, mỗi giá trị reflectance nhân với hệ số ngẫu nhiên 0.99..1.01 (seed 0). Giá trị no-data −10000 giữ nguyên</span></div>
+    <div><span class="k">Lệnh</span><span>như TC-06</span></div>
+    <div><span class="k">Kết quả đúng</span><span>Trung bình ≥ 95% pixel giữ lớp so với dự đoán gốc</span></div>
+    <div><span class="k">Kết quả thật</span><span><span class="ok">PASS</span>: trung bình 97.9%; cửa sổ thấp nhất 84.2%</span></div>
+    <div><span class="k">Bằng chứng</span><span><code>junit-ai-after.xml</code>, thuộc tính <code>agreement_mean = 0.9793</code></span></div>
+  </div>
+
+  <div class="step">
+    <h3>TC-09: Container end-to-end</h3>
+    <div><span class="k">Mục tiêu</span><span>Image Docker thật (model, weights, code DINOv3) chạy được và trả kết quả đúng hợp đồng.</span></div>
+    <div><span class="k">Chạy ở</span><span>GitHub Actions, job <code>docker</code>, sau khi build image</span></div>
+    <div><span class="k">Lệnh</span> <span><code>docker run -d --name api -p 8000:8000 deepsat-api:ci</code><br><code>python3 scripts/smoke_api.py http://localhost:8000 --wait 180</code></span></div>
+    <div><span class="k">Kết quả đúng</span><span><code>/health</code> ok kèm <code>model_version</code>; <code>/predict</code> 200; <code>status</code> OK hoặc UNCERTAIN; <code>pred</code> 24×24 với lớp 0..18; <code>model_version</code> khớp <code>/health</code>; file sai cho 422; dòng cuối <code>smoke test passed</code></span></div>
+    <div><span class="k">Kết quả thật</span><span><span class="ok">PASS</span>: 7/7 dòng PASS; <code>confidence 0.9245, latency_ms 523</code>, cùng confidence với TC-07 chạy local</span></div>
+  </div>
+  <figure>
+    <img src="qa/tc09-ci-smoke.png" alt="Log CI: smoke test container API, 7 dòng PASS">
+    <figcaption>Hình 1. TC-09: log bước smoke test container trong GitHub Actions.</figcaption>
+  </figure>
+
+  <div class="step">
+    <h3>TC-10: Tải với k6</h3>
+    <div><span class="k">Mục tiêu</span><span>API chịu được 5 người dùng đồng thời trên CPU, không lỗi.</span></div>
+    <div><span class="k">Chạy ở</span><span>Local, hai terminal</span></div>
+    <div><span class="k">Lệnh</span> <span><code>.venv/Scripts/uvicorn --factory api.main:create_app --port 8000</code><br><code>k6 run --summary-export docs/report/qa/k6-summary-after.json tests/load/predict.js</code></span></div>
+    <div><span class="k">Kết quả đúng</span><span>3 threshold của k6 có dấu ✓: <code>p(95)&lt;5000</code>, <code>rate&lt;0.01</code>, <code>checks rate&gt;0.99</code></span></div>
+    <div><span class="k">Kết quả thật</span><span><span class="ok">PASS</span>: 170 request; p50 2.37 s; p95 3.83 s; p99 4.34 s; lỗi 0%; checks 510/510; <code>FALLBACK</code> 0%, <code>UNCERTAIN</code> 0%</span></div>
+    <div><span class="k">Bằng chứng</span><span><code>k6-summary-after.json</code>, <code>k6-run-after.txt</code></span></div>
+  </div>
+</section>
 
 <!-- P3: section 5 -->
 

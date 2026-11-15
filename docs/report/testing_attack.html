@@ -297,7 +297,169 @@ git -C weights/dinov3 checkout -q FETCH_HEAD</pre>
   </div>
 </section>
 
-<!-- P3: section 5 -->
+<section>
+  <h2>5. 10 test case tấn công (ATK-01..10)</h2>
+  <p>Mỗi tấn công là một test tự động với kỳ vọng an toàn. Test chạy trên code chưa sửa, rồi chạy lại sau khi sửa. Mọi payload chỉ chạy vào API local hoặc <code>TestClient</code>. Không có tấn công nào nhắm vào hệ thống bên ngoài.</p>
+  <h3>5.1. Bảng tổng hợp: trước và sau khi sửa</h3>
+  <table class="tc">
+    <colgroup><col style="width:7%"><col style="width:13%"><col style="width:17%"><col style="width:27%"><col style="width:23%"><col style="width:13%"></colgroup>
+    <tr><th>ID</th><th>Tấn công</th><th>Mối đe dọa</th><th>Trước khi sửa</th><th>Sau khi sửa</th><th>Trạng thái</th></tr>
+    <tr><td>ATK-01</td><td>Adversarial FGSM</td><td>Nhiễu nhỏ có chủ đích làm sai bản đồ</td><td>Accuracy 80.8% còn 57.1%; 29.5% pixel đổi lớp; <code>UNCERTAIN</code> 1/20 cửa sổ</td><td>Không sửa</td><td class="warn">Rủi ro còn lại</td></tr>
+    <tr><td>ATK-02</td><td>Adversarial PGD, 10 bước</td><td>Như ATK-01, mạnh hơn</td><td>Accuracy 80.8% còn 12.3%; 72.1% pixel đổi lớp; <code>UNCERTAIN</code> 0/20</td><td>Không sửa</td><td class="warn">Rủi ro còn lại</td></tr>
+    <tr><td>ATK-03</td><td>Giá trị ngoài miền</td><td>Ảnh rác nhận kết quả tự tin</td><td><span class="bad">Model thật trả <code>OK</code>, confidence ≥ 0.99</span> cho ảnh toàn 32767, toàn −32768, toàn 0. Stub: 4/4 được nhận</td><td>422, 4/4</td><td class="ok">Đã sửa</td></tr>
+    <tr><td>ATK-04</td><td>Tiêm NaN, Inf</td><td>Crash server, kết quả rác</td><td><span class="bad">NaN ở band RGB: HTTP 500.</span> NaN ở band khác và Inf: <code>OK</code> 0.9997</td><td>422, 2/2</td><td class="ok">Đã sửa</td></tr>
+    <tr><td>ATK-05</td><td>Decompression bomb</td><td>Hết RAM</td><td><span class="bad">File dưới 1 MB làm server cấp phát đỉnh 883 MB</span></td><td>422; đỉnh 3 MB</td><td class="ok">Đã sửa</td></tr>
+    <tr><td>ATK-06</td><td>Pickle (RCE)</td><td>Chạy code tùy ý trên server</td><td>Đã chặn: 422, payload không chạy</td><td>Giữ nguyên</td><td class="ok">An toàn</td></tr>
+    <tr><td>ATK-07</td><td>File giả mạo, path traversal</td><td>Ghi file, vượt kiểm tra định dạng</td><td>Đã chặn: zip cắt cụt và polyglot PNG cho 422; filename <code>../../</code> không được dùng</td><td>Giữ nguyên</td><td class="ok">An toàn</td></tr>
+    <tr><td>ATK-08</td><td>Upload 50 MB</td><td>Tốn RAM, đĩa, băng thông</td><td>422, nhưng chỉ sau khi server đã nhận hết 50 MB</td><td>413 trước khi đọc body</td><td class="ok">Đã sửa</td></tr>
+    <tr><td>ATK-09</td><td>Flood 12 request đồng thời</td><td>Từ chối dịch vụ</td><td>Mọi request xếp hàng; <span class="bad">2 request chờ tới timeout và nhận <code>FALLBACK</code></span>; không có 503</td><td>5 <code>OK</code> và 7 × 503 có <code>Retry-After</code>; <code>/health</code> &lt; 1 s</td><td class="ok">Đã sửa</td></tr>
+    <tr><td>ATK-10</td><td>Thao túng chuỗi <code>doy</code></td><td>Kết quả sai mà không ai biết</td><td>Đảo ngược, xáo trộn, một ngày lặp 3 lần: 3/3 được nhận</td><td>422, 3/3; một ngày lặp 2 lần vẫn được nhận</td><td class="ok">Đã sửa</td></tr>
+  </table>
+  <table style="width:auto">
+    <tr><th>Lần chạy</th><th>Passed</th><th>Failed</th><th>Xfailed</th><th>File</th></tr>
+    <tr><td>Trước khi sửa</td><td>5</td><td class="bad">12</td><td>2</td><td><code>junit-attack-before.xml</code></td></tr>
+    <tr><td>Sau khi sửa</td><td class="ok">17</td><td>0</td><td>2</td><td><code>junit-attack-after.xml</code></td></tr>
+  </table>
+  <p class="note">19 test cho 10 loại tấn công. "Xfailed" là ATK-01/02: test được đánh dấu <code>xfail(strict=True)</code> là lỗ hổng đã biết. Nếu sau này model trở nên bền vững, test chuyển sang đỏ để người viết gỡ đánh dấu.</p>
+  <figure>
+    <img src="qa/atk-ci-green.png" alt="Log CI: pytest tests/test_api.py tests/test_attack_api.py, 40 passed">
+    <figcaption>Hình 2. CI ngày 15/11/2026, job <code>test-api</code>: TC-01..05 và ATK-03..10 chạy cùng nhau, 40 passed.</figcaption>
+  </figure>
+
+  <h3>5.2. Chi tiết từng tấn công</h3>
+  <p>Lệnh cho ATK-03..10 (stub, khoảng 10 s): <code>.venv/Scripts/python -m pytest -q tests/test_attack_api.py -rA -s</code>.
+     Lệnh cho ATK-01..02 (model thật, khoảng 8 phút trên CPU): <code>.venv/Scripts/python -m pytest -q tests/test_attack_model.py -rA -s</code>.</p>
+
+  <div class="step">
+    <h3>ATK-01 và ATK-02: Adversarial FGSM và PGD</h3>
+    <div><span class="k">Cách làm</span><span>Tấn công L∞ không chủ đích trên 20 cửa sổ fold 5. Đạo hàm của loss theo input chỉ ra hướng làm model sai nhiều nhất. Mỗi giá trị đã chuẩn hóa được dịch tối đa ε = 0.03 × độ lệch chuẩn của band. Chỉ sửa 10 band ở các ngày thật, không sửa kênh <code>doy</code> và phần đệm.</span></div>
+    <div><span class="k">FGSM</span><span>1 bước, bước nhảy α = ε (<code>test_fgsm</code>)</span></div>
+    <div><span class="k">PGD</span><span>10 bước, α = 0.01, sau mỗi bước chiếu lại vào khoảng ±ε (<code>test_pgd</code>)</span></div>
+    <div><span class="k">So sánh</span><span>Nhiễu ngẫu nhiên dấu ±ε, cùng ngân sách, không dùng gradient</span></div>
+    <div><span class="k">Tiêu chí an toàn</span><span>Accuracy giảm ≤ 10 điểm, hoặc ≥ 80% cửa sổ bị tấn công có <code>status = UNCERTAIN</code></span></div>
+    <div><span class="k">Kết quả</span><span><span class="bad">Không đạt.</span> Bảng và Hình 3</span></div>
+  </div>
+  <table style="width:auto">
+    <tr><th>Điều kiện</th><th>Accuracy (pixel có nhãn)</th><th>Pixel đổi lớp so với sạch</th><th>Cửa sổ <code>UNCERTAIN</code></th></tr>
+    <tr><td>Sạch</td><td>80.8%</td><td>—</td><td>—</td></tr>
+    <tr><td>Nhiễu ngẫu nhiên ±ε</td><td>71.4%</td><td>—</td><td>—</td></tr>
+    <tr><td>FGSM</td><td class="bad">57.1%</td><td>29.5%</td><td>1/20</td></tr>
+    <tr><td>PGD</td><td class="bad">12.3%</td><td>72.1%</td><td>0/20</td></tr>
+  </table>
+  <figure>
+    <svg viewBox="0 0 640 170" width="100%" role="img" aria-label="Accuracy: sạch 80.8%, nhiễu ngẫu nhiên 71.4%, FGSM 57.1%, PGD 12.3%" style="font: 12px 'Segoe UI', Arial, sans-serif">
+      <g fill="#1b1f24">
+        <text x="140" y="27" text-anchor="end">Sạch</text>
+        <text x="140" y="65" text-anchor="end">Nhiễu ngẫu nhiên ±ε</text>
+        <text x="140" y="103" text-anchor="end">FGSM</text>
+        <text x="140" y="141" text-anchor="end">PGD (10 bước)</text>
+      </g>
+      <rect x="150" y="12" width="371.7" height="22" fill="#1f5fa8"/>
+      <rect x="150" y="50" width="328.4" height="22" fill="#8aa9cf"/>
+      <rect x="150" y="88" width="262.7" height="22" fill="#b42318"/>
+      <rect x="150" y="126" width="56.6" height="22" fill="#b42318"/>
+      <g fill="#1b1f24">
+        <text x="527" y="27">80.8%</text>
+        <text x="484" y="65">71.4%</text>
+        <text x="419" y="103">57.1%</text>
+        <text x="213" y="141">12.3%</text>
+      </g>
+      <line x1="150" y1="6" x2="150" y2="156" stroke="#5a6370"/>
+      <text x="150" y="168" fill="#5a6370">0%</text>
+      <text x="610" y="168" fill="#5a6370" text-anchor="end">100%</text>
+    </svg>
+    <figcaption>Hình 3. ATK-01/02: accuracy trên 20 cửa sổ fold 5, ε = 0.03 × độ lệch chuẩn của band.</figcaption>
+  </figure>
+  <p><b>Nhận xét.</b> PGD làm accuracy giảm từ 80.8% xuống 12.3%, nhưng confidence vẫn cao: 0/20 cửa sổ bị đánh dấu <code>UNCERTAIN</code>. Ngưỡng 0.80 không phát hiện được tấn công. Gradient theo input chỉ khác 0 ở 3 band RGB (B4, B3, B2), là các band backbone DINOv3 nhìn thấy. Kẻ tấn công chỉ cần sửa 3 band này.</p>
+  <p><b>Vì sao chưa sửa.</b> Cách sửa thật sự là huấn luyện đối kháng (adversarial training), nằm ngoài phạm vi môn học. Test được giữ với <code>xfail(strict=True)</code> và số đo trong lý do. Hướng giảm thiểu ở mục 7.</p>
+  <p class="note">Ghi chú kỹ thuật: backbone DINOv3 đóng băng chạy trong <code>torch.no_grad</code>, nên gradient không tới input. Test tạm thay <code>torch.no_grad</code> bằng <code>contextlib.nullcontext</code> qua <code>mock.patch</code> khi tấn công. Code model không bị sửa.</p>
+
+  <div class="step">
+    <h3>ATK-03: Giá trị ngoài miền</h3>
+    <div><span class="k">Cách làm</span><span>Gửi <code>img</code> toàn 32767, toàn −32768, toàn 0, và một ảnh hợp lệ có 1 pixel bằng 30000 (<code>test_out_of_range_reflectance_is_rejected</code>)</span></div>
+    <div><span class="k">Trước</span><span>Stub: 4/4 được nhận. Model thật: toàn 32767 cho <code>OK</code> 0.9906; toàn −32768 cho <code>OK</code> 0.9998; toàn 0 cho <code>OK</code> 0.9998 (<code>atk-real-before.txt</code>)</span></div>
+    <div><span class="k">Sửa</span><span>Miền giá trị lấy từ 300 cửa sổ thật: −3186..19080, cộng giá trị no-data −10000 (có ở 88/300 cửa sổ). Đặt biên rộng hơn: −5000..25000. Ảnh hằng số là không có dữ liệu</span></div>
+    <div><span class="k">Sau</span><span><span class="ok">422, 4/4.</span> 0/300 cửa sổ thật bị chặn (TC-06 vẫn chạy đủ 300 cửa sổ)</span></div>
+  </div>
+<pre>IMG_RANGE = (-5000, 25000)  # 300 PASTIS fold 5 windows hold -3186..19080 besides the nodata value
+NODATA = -10000             # PASTIS no-data reflectance, present in 88 of those 300 windows
+...
+if not ((img == NODATA) | ((img &gt;= IMG_RANGE[0]) &amp; (img &lt;= IMG_RANGE[1]))).all():
+    raise ValueError('img values must be in %d..%d, or %d for no data' % (*IMG_RANGE, NODATA))
+if img.min() == img.max():
+    raise ValueError('img is constant: no data in this window')</pre>
+
+  <div class="step">
+    <h3>ATK-04: Tiêm NaN, Inf</h3>
+    <div><span class="k">Cách làm</span><span>Ảnh float32 hợp lệ, đặt 1 giá trị thành NaN hoặc Inf (<code>test_nan_or_inf_is_rejected</code>)</span></div>
+    <div><span class="k">Trước</span><span>Stub: 2/2 được nhận. Model thật: NaN ở band 3 cho <code>OK</code> 0.9997; <span class="bad">NaN ở band 2 (RGB) cho HTTP 500</span>; Inf ở band 2 cho <code>OK</code> 0.9997</span></div>
+    <div><span class="k">Sau</span><span><span class="ok">422, 2/2</span></span></div>
+  </div>
+<pre>if not np.isfinite(img).all():
+    raise ValueError('img contains NaN or Inf')</pre>
+
+  <div class="step">
+    <h3>ATK-05: Decompression bomb</h3>
+    <div><span class="k">Cách làm</span><span>File <code>.npz</code> dưới 1 MB, qua được giới hạn 5 MB. Bên trong là mảng float64 (20000, 10, 24, 24) toàn số 0, 879 MB khi giải nén. Đo bộ nhớ cấp phát đỉnh bằng <code>tracemalloc</code></span></div>
+    <div><span class="k">Trước</span><span><span class="bad">Đỉnh 925 732 112 byte (883 MB).</span> <code>d['img']</code> giải nén toàn bộ rồi mới kiểm shape</span></div>
+    <div><span class="k">Sửa</span><span>Đọc kích thước khai báo của từng mảng trong thư mục zip, trước khi giải nén. Giới hạn là mảng hợp lệ lớn nhất: 366 × 10 × 24 × 24 float64</span></div>
+    <div><span class="k">Sau</span><span><span class="ok">422; đỉnh 3 MB</span></span></div>
+  </div>
+<pre>MAX_MEMBER_BYTES = MAX_DATES * BANDS * WIN * WIN * 8    # largest valid array (float64); a bigger member is a decompression bomb
+...
+if any(m.file_size &gt; MAX_MEMBER_BYTES for m in d.zip.infolist()):   # sizes from the zip directory: checked before inflating
+    raise ValueError('array too large for one window')</pre>
+
+  <div class="step">
+    <h3>ATK-06: Pickle, thực thi code từ xa</h3>
+    <div><span class="k">Cách làm</span><span>Hai payload: object array trong <code>.npz</code>, và file pickle thô. Khi unpickle, payload tạo một file đánh dấu trong thư mục tạm của pytest (<code>test_pickle_payload_is_never_unpickled</code>)</span></div>
+    <div><span class="k">Kết quả</span><span><span class="ok">An toàn trước và sau:</span> 422, file đánh dấu không được tạo. API đọc với <code>np.load(..., allow_pickle=False)</code></span></div>
+  </div>
+
+  <div class="step">
+    <h3>ATK-07: File giả mạo và path traversal</h3>
+    <div><span class="k">Cách làm</span><span>Zip bị cắt ở byte 2000; file PNG polyglot (header PNG trước một <code>.npz</code> hợp lệ); file hợp lệ với tên <code>../../atk07_written.npz</code> và content-type <code>image/png</code></span></div>
+    <div><span class="k">Kết quả</span><span><span class="ok">An toàn trước và sau:</span> hai file giả cho 422. File có tên lạ vẫn được xử lý đúng (200, <code>OK</code>), không có file nào được ghi theo tên đó. API chỉ đọc nội dung, không dùng tên file hay content-type</span></div>
+  </div>
+
+  <div class="step">
+    <h3>ATK-08: Upload quá cỡ</h3>
+    <div><span class="k">Cách làm</span><span>Gửi body 50 MB (<code>test_oversized_upload_is_refused_before_reading</code>)</span></div>
+    <div><span class="k">Trước</span><span>422 từ <code>read_window</code>, nhưng chỉ sau khi framework đã nhận và lưu tạm cả 50 MB</span></div>
+    <div><span class="k">Sửa</span><span>Middleware đọc header <code>Content-Length</code>. Lớn hơn 5 MB + 64 KB thì trả 413 ngay, không đọc body</span></div>
+    <div><span class="k">Sau</span><span><span class="ok">413, model không được gọi</span></span></div>
+  </div>
+<pre>size = request.headers.get('content-length', '')
+if size.isdigit() and int(size) &gt; MAX_BODY:
+    return JSONResponse({'detail': 'request larger than %d MB' % (MAX_BYTES // 2**20)}, status_code=413)</pre>
+
+  <div class="step">
+    <h3>ATK-09: Flood</h3>
+    <div><span class="k">Cách làm</span><span>12 request đồng thời. Stub mất 0.5 s mỗi lần, timeout 5 s, model chạy 1 request một lúc. Giữa lúc flood, gọi <code>/health</code> và đo thời gian (<code>test_flood_gets_503_and_health_stays_up</code>)</span></div>
+    <div><span class="k">Trước</span><span>12 × 200; <span class="bad">2 request chờ quá 5 s và nhận <code>FALLBACK</code></span>; không có 503. Hàng đợi không giới hạn: request càng nhiều, người đến sau càng chờ lâu rồi vẫn không có kết quả</span></div>
+    <div><span class="k">Sửa</span><span>Đếm số suy luận đã nhận mà chưa xong. Từ 5 trở lên (1 đang chạy, 4 đang chờ) thì trả 503 ngay, kèm <code>Retry-After</code>. Bộ đếm giảm trong <code>add_done_callback</code>, nên không bị rò khi model lỗi hay request bị hủy</span></div>
+    <div><span class="k">Sau</span><span><span class="ok">5 <code>OK</code> và 7 × 503 có <code>Retry-After</code>; không có <code>FALLBACK</code>; <code>/health</code> &lt; 1 s.</span> Kết quả giống nhau trong 5/5 lần chạy</span></div>
+  </div>
+<pre>with lock:
+    if pending &gt;= MAX_PENDING:
+        raise HTTPException(status_code=503, detail='server busy, retry later', headers={'Retry-After': str(math.ceil(timeout_s))})
+    pending += 1
+...
+future = pool.submit(predictor.predict, img, doy)
+future.add_done_callback(release)     # runs on finish, failure or cancel, so the count never leaks</pre>
+
+  <div class="step">
+    <h3>ATK-10: Thao túng chuỗi thời gian</h3>
+    <div><span class="k">Cách làm</span><span>Ảnh hợp lệ với <code>doy</code> đảo ngược, xáo trộn, hoặc một ngày lặp 3 lần (<code>test_doy_manipulation_is_rejected</code>)</span></div>
+    <div><span class="k">Trước</span><span>3/3 được nhận: API gọi model với chuỗi ngày sai và trả bản đồ như bình thường</span></div>
+    <div><span class="k">Sửa</span><span><code>doy</code> phải không giảm, mỗi ngày xuất hiện tối đa 2 lần. Không dùng luật "tăng ngặt" vì dữ liệu PASTIS thật có ngày chụp 2 lần</span></div>
+    <div><span class="k">Sau</span><span><span class="ok">422, 3/3.</span> Một ngày lặp 2 lần vẫn cho 200 (<code>test_same_day_twice_is_accepted</code>)</span></div>
+  </div>
+<pre>if (np.diff(doy) &lt; 0).any():
+    raise ValueError('doy must be in date order')
+if np.bincount(doy).max() &gt; MAX_SAME_DOY:
+    raise ValueError('a day of year appears more than %d times' % MAX_SAME_DOY)</pre>
+</section>
 
 <!-- P4: sections 6-9 -->
 

@@ -461,7 +461,93 @@ if np.bincount(doy).max() &gt; MAX_SAME_DOY:
     raise ValueError('a day of year appears more than %d times' % MAX_SAME_DOY)</pre>
 </section>
 
-<!-- P4: sections 6-9 -->
+<section>
+  <h2>6. Hồi quy sau khi sửa</h2>
+  <p>Bản sửa thêm luật chặn input và giới hạn hàng đợi. Phải kiểm lại hai điều: luật mới không chặn dữ liệu thật, và giới hạn hàng đợi không trả 503 khi tải bình thường.</p>
+  <table>
+    <tr><th style="width:26%">Test</th><th>Trước khi sửa</th><th>Sau khi sửa</th><th style="width:10%"></th></tr>
+    <tr><td>TC-01..05 (mock)</td><td>23 passed</td><td>23 passed; CI 40 passed cùng ATK-03..10</td><td class="ok">Giữ</td></tr>
+    <tr><td>TC-06: OA, mIoU</td><td>79.4%, 51.6%</td><td>79.4%, 51.6%; 0/300 cửa sổ bị chặn</td><td class="ok">Giữ</td></tr>
+    <tr><td>TC-07: tất định</td><td>PASS</td><td>PASS</td><td class="ok">Giữ</td></tr>
+    <tr><td>TC-08: pixel giữ lớp</td><td>97.9%</td><td>97.9%</td><td class="ok">Giữ</td></tr>
+    <tr><td>TC-10: số request trong 2 phút</td><td>109</td><td>170</td><td></td></tr>
+    <tr><td>TC-10: p50 / p95 / p99</td><td>4.60 s / 4.90 s / 4.99 s</td><td>2.37 s / 3.83 s / 4.34 s</td><td class="ok">Đạt</td></tr>
+    <tr><td>TC-10: lỗi, 503</td><td>0%, không có</td><td>0%, không có (510/510 check status 200)</td><td class="ok">Giữ</td></tr>
+  </table>
+  <ul>
+    <li>Một lỗi hồi quy đã được bắt trong lúc sửa. Luật miền giá trị mới làm TC-08 nhận 422: nhiễu ±1% biến giá trị no-data −10000 thành khoảng −10100, nằm ngoài miền. Lỗi nằm ở test, không ở API: dữ liệu thật không bao giờ có −10100. Test được sửa để giữ nguyên giá trị no-data, kết quả TC-08 không đổi.</li>
+    <li>TC-10 sau khi sửa nhanh hơn, nhưng bản sửa không làm suy luận nhanh hơn. Hai lần đo chạy trên cùng máy laptop vào thời điểm khác nhau, nên tải nền của máy khác nhau. Kết luận chỉ là: giới hạn 5 suy luận không gây 503 với 5 người dùng, và p95 vẫn dưới 5 s.</li>
+  </ul>
+  <p class="note">Bằng chứng: <code>junit-mock.xml</code>, <code>junit-ai.xml</code> (trước), <code>junit-ai-after.xml</code> (sau), <code>k6-run.txt</code> và <code>k6-summary.json</code> (trước), <code>k6-run-after.txt</code> và <code>k6-summary-after.json</code> (sau).</p>
+</section>
+
+<section>
+  <h2>7. Rủi ro còn lại</h2>
+  <table>
+    <tr><th style="width:26%">Rủi ro</th><th style="width:38%">Hậu quả</th><th>Hướng khắc phục</th></tr>
+    <tr><td>Adversarial (ATK-01/02) chưa sửa</td><td>Nhiễu 0.03 × std trên 3 band RGB làm accuracy còn 12.3%, mà confidence vẫn cao và status vẫn <code>OK</code></td><td>Huấn luyện đối kháng với PGD; hiệu chỉnh confidence (temperature scaling) để ngưỡng 0.80 có ý nghĩa; chỉ nhận ảnh từ nguồn tin cậy (ví dụ tải trực tiếp từ Copernicus) thay vì file do người dùng gửi</td></tr>
+    <tr><td>API không có xác thực</td><td>Ai gọi được URL thì dùng được model và tốn CPU của server</td><td>API key hoặc OAuth ở reverse proxy hay API gateway</td></tr>
+    <tr><td>Giới hạn 503 là chung cho mọi client</td><td>Một client flood liên tục có thể chiếm hết 5 chỗ, người khác chỉ nhận 503</td><td>Rate limit theo client (IP hoặc API key) ở reverse proxy</td></tr>
+    <tr><td><code>/docs</code> và <code>/openapi.json</code> đang mở</td><td>Lộ toàn bộ cấu trúc API cho người lạ</td><td>Tắt khi chạy production: <code>FastAPI(docs_url=None, redoc_url=None, openapi_url=None)</code></td></tr>
+    <tr><td>Upload chunked không có <code>Content-Length</code></td><td>Không bị middleware 413 chặn; body vẫn được lưu tạm xuống đĩa trước khi <code>read_window</code> cắt ở 5 MB</td><td>Giới hạn kích thước body ở reverse proxy (ví dụ <code>client_max_body_size 6m</code> của nginx). Uvicorn không có tùy chọn này</td></tr>
+  </table>
+
+  <h2 style="margin-top:8mm">8. Kết luận</h2>
+  <ul>
+    <li>10/10 test case kiểm thử PASS: 5 mock trên CI, 3 AI với model thật, 2 automation (container trên CI và tải k6).</li>
+    <li>Model trong API giữ đúng chất lượng đã công bố: OA 79.4%, mIoU 51.6% trên 300 cửa sổ, so với 79.6% và 53.9% trong model card.</li>
+    <li>Trong 10 loại tấn công, 2 loại đã bị chặn từ đầu (pickle, file giả mạo). 6 loại là lỗ hổng thật và đã được sửa: ảnh rác nhận <code>OK</code> 0.99, NaN gây HTTP 500, bomb chiếm 883 MB RAM, upload lớn được đọc hết, flood gây <code>FALLBACK</code>, <code>doy</code> sai thứ tự được nhận.</li>
+    <li>2 loại chưa sửa: FGSM và PGD làm accuracy còn 57.1% và 12.3%. Ngưỡng confidence không phát hiện được các tấn công này.</li>
+    <li>Mọi bản sửa giữ TC-01..10 xanh. ATK-03..10 chạy trên CI ở mỗi push, nên lỗ hổng cũ không quay lại mà không ai biết.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Phụ lục A. Số liệu và file nguồn</h2>
+  <p>Thư mục gốc của file: <code>docs/report/qa/</code>, trừ khi ghi khác.</p>
+  <table class="tc">
+    <colgroup><col style="width:40%"><col style="width:60%"></colgroup>
+    <tr><th>Số liệu</th><th>Nguồn</th></tr>
+    <tr><td>TC-01..05: 23 test passed</td><td><code>junit-mock.xml</code></td></tr>
+    <tr><td>CI: 40 passed (TC-01..05 và ATK-03..10)</td><td><code>atk-ci-green.png</code> (Hình 2)</td></tr>
+    <tr><td>TC-06: OA 79.4%, mIoU 51.6%</td><td><code>junit-ai.xml</code>, <code>junit-ai-after.xml</code>: thuộc tính <code>OA = 0.7943</code>, <code>mIoU = 0.5163</code></td></tr>
+    <tr><td>TC-07: 0 pixel khác, confidence 0.9245</td><td>Output dòng <code>TC-07</code> khi chạy <code>tests/test_ai_model.py -s</code>; junit chỉ ghi PASS</td></tr>
+    <tr><td>TC-08: trung bình 97.9%</td><td><code>junit-ai-after.xml</code>: <code>agreement_mean = 0.9793</code></td></tr>
+    <tr><td>TC-08: thấp nhất 84.2%</td><td>Output dòng <code>TC-08</code> khi chạy với <code>-s</code></td></tr>
+    <tr><td>TC-09: 7 dòng PASS, confidence 0.9245, latency 523 ms</td><td><code>tc09-ci-smoke.png</code> (Hình 1)</td></tr>
+    <tr><td>TC-10 trước: 109 request, p50 4.60 s, p95 4.90 s, p99 4.99 s, lỗi 0%</td><td><code>k6-run.txt</code>, <code>k6-summary.json</code></td></tr>
+    <tr><td>TC-10 sau: 170 request, p50 2.37 s, p95 3.83 s, p99 4.34 s, lỗi 0%, 510/510 check</td><td><code>k6-run-after.txt</code>, <code>k6-summary-after.json</code></td></tr>
+    <tr><td>ATK-01/02: accuracy 80.8%, 71.4%, 57.1%, 12.3%; pixel đổi lớp 29.5%, 72.1%; <code>UNCERTAIN</code> 1/20, 0/20</td><td><code>junit-attack-after.xml</code>: thuộc tính <code>acc_clean</code>, <code>acc_random</code>, <code>acc_attack</code>, <code>flip_rate</code>, <code>uncertain_rate</code></td></tr>
+    <tr><td>ATK-03/04 trên model thật: <code>OK</code> 0.9906, 0.9998, 0.9998, 0.9997; HTTP 500</td><td><code>atk-real-before.txt</code></td></tr>
+    <tr><td>ATK trước khi sửa: 5 passed, 12 failed, 2 xfailed; bomb 925 732 112 byte; flood không có 503</td><td><code>junit-attack-before.xml</code>: thông báo lỗi của từng test</td></tr>
+    <tr><td>ATK sau khi sửa: 17 passed, 2 xfailed</td><td><code>junit-attack-after.xml</code></td></tr>
+    <tr><td>ATK-05 sau: đỉnh 3 MB. ATK-09: trước 2 <code>FALLBACK</code>; sau 5 <code>OK</code> và 7 × 503, 5/5 lần chạy</td><td>Output dòng <code>ATK-05</code>, <code>ATK-09</code> khi chạy <code>tests/test_attack_api.py -s</code></td></tr>
+    <tr><td>Miền giá trị −3186..19080; no-data ở 88/300 cửa sổ; 0/300 bị chặn</td><td>Đo trên <code>tests/fixtures/eval_windows.npz</code>; ghi trong <code>SPEC-ai-attack-suite.md</code> và <code>api/main.py</code></td></tr>
+    <tr><td>Model card: OA 79.6%, mIoU 53.9%</td><td><code>api/MODEL_CARD.md</code></td></tr>
+  </table>
+</section>
+
+<section>
+  <h2>Phụ lục B. Danh sách commit (nhánh <code>report</code>)</h2>
+  <table class="tc">
+    <colgroup><col style="width:13%"><col style="width:87%"></colgroup>
+    <tr><th>Commit</th><th>Nội dung</th></tr>
+    <tr><td><code>45a744e</code></td><td>Spec: capability map và ai-test-suite</td></tr>
+    <tr><td><code>c4de7bc</code></td><td><code>make_fixture --eval</code>: cắt cửa sổ fold 5 có nhãn cho TC-06..08</td></tr>
+    <tr><td><code>bfbb0a6</code></td><td>API nhận cửa sổ PASTIS có hơn 60 ngày</td></tr>
+    <tr><td><code>9f01626</code></td><td>TC-06..08: accuracy, tất định, nhiễu trên model thật</td></tr>
+    <tr><td><code>dbcc68a</code></td><td>TC-01..05: gắn ID cho mock test, lưu JUnit</td></tr>
+    <tr><td><code>00352e5</code></td><td>TC-10: k6 với model thật trên uvicorn local</td></tr>
+    <tr><td><code>ef73283</code></td><td>TC-09: bằng chứng smoke test container trên CI</td></tr>
+    <tr><td><code>b598fad</code></td><td>Spec: ai-attack-suite</td></tr>
+    <tr><td><code>aeea711</code></td><td>ATK-03..10: test tấn công API, trước khi sửa</td></tr>
+    <tr><td><code>460ec58</code></td><td>ATK-01..02: FGSM và PGD trên model thật, <code>xfail</code></td></tr>
+    <tr><td><code>abf5cc5</code></td><td>Sửa: chặn bomb, NaN/Inf, giá trị ngoài miền, <code>doy</code> sai thứ tự</td></tr>
+    <tr><td><code>02f061a</code></td><td>Sửa: 413 cho body quá lớn, 503 khi đã có 5 suy luận chờ</td></tr>
+    <tr><td><code>c03ba8c</code></td><td>CI chạy test tấn công; bằng chứng sau khi sửa</td></tr>
+    <tr><td><code>f8cda24</code> trở đi</td><td>Spec và nguồn HTML của tài liệu này</td></tr>
+  </table>
+</section>
 
 </body>
 </html>
